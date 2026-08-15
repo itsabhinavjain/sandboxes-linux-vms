@@ -1,44 +1,50 @@
 # Sandbox - Linux VMs
-
 - Option 1 : Using the ISO Images (Installer, Packages, Bootloader)
-- Option 2 (Choosing this): Using Cloud Images (`.img` files)
+- Option 2 (Choosing this): Using Cloud Images (`.img` files). Use base images here. 
 
-## Lifecycle scripts 
-### Sandbox 
-- init.sh 
-- start.sh
-- configure-automated.sh 
-- configure-manual.sh
-- stop.sh
-- reboot.sh 
-- resume.sh
-- snapshot.sh
-- revert.sh
-- destroy.sh
-- status.sh : Gives the status and info 
-- doctor.sh : Runs diagnostic tests 
+- Naming convention : `vir-ubuntu-01` and then additional numbers 
+- `state.yaml` : Will have the state of the vm and will be kept updated by the scripts. 
+
+## Scripts 
+### Sandbox Lifecycle Scripts 
+- `00_init.sh`                      # Helps in setting up the hostname etc. It should check that the same name is not currently in use. It should also ask for specifications (with defaults) for RAM, CPU, Disk Size etc 
+- `01_start.sh`                     # Starts the VM 
+- `02_stop.sh`
+- `03_reboot.sh`
+- `04_resume.sh`
+- `05_destroy.sh`
+- `08_status.sh`                    # Gives the status and info 
+- `09_doctor.sh`                    # Runs diagnostic tests 
+- Configuration 
+    - `11_configure-automated.sh`
+    - `12_configure-manual.sh`
+- Snapshots
+    - `21_snapshot.sh`
+    - `22_revert.sh`
+
 
 ### Managing Sandboxes 
-- list.sh
-- info.sh : Will list the IP address etc 
+- list_vms.sh                      # Will list all the vms and their statuses
+- info_vms.sh                      # Will list the IP address etc 
 
 
 ## Environment 
 
 ### Environment 
-- Libvirt related : 
-- Cockpit 
+- Libvirt related : check [SETUP.md](./SETUP.md)
+- Cockpit for web based gui
 
 ### Environment variables 
 - Libvirt should be setup in a way that the following directories should be setup as storage pools 
 
 ```
-export SANDBOX_HOME="${SANDBOX_HOME:-$HOME/sandboxes}"
+export SANDBOX_HOME="${SANDBOX_HOME:-$HOME/projects}"
 export LIBVIRT_HOME="${STORAGE_POOL_HOME:-$SANDBOX_HOME/libvirt}"
 export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
 export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
-export DEFAULT_CLOUD_IMG = ""
+export DEFAULT_CLOUD_IMG = "noble-server-cloudimg-amd64"
 ```
 
 ## Libvirt Reference
