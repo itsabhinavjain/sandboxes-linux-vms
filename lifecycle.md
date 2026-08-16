@@ -23,7 +23,8 @@ script. See [README.md](./README.md#requirements-for-the-repo) and
 Defines a new VM without starting it. Validates the name isn't already in
 use, creates a qcow2 overlay disk (backed by the base cloud image) in
 `STORAGE_POOL_DISKS`, renders the cloud-init templates and builds the seed
-ISO, then defines the libvirt domain (`virsh define`, no boot). Writes
+ISO in `STORAGE_POOL_CLOUD_INIT_ISOS`, then defines the libvirt domain
+(`virsh define`, no boot). Writes
 `<vmname>.state.yaml` with `status: defined`. Rolls back any partially
 created files if a step fails.
 
@@ -58,7 +59,7 @@ Tailscale SSH hint (`<vmname>.<tailnet>.ts.net`).
 
 ### `scripts/09_doctor.sh`
 No vmname argument -- host-level diagnostics. Checks KVM support
-(`kvm-ok`), `libvirtd` is active, the four storage pools exist and are
+(`kvm-ok`), `libvirtd` is active, the five storage pools exist and are
 correctly permissioned/setgid, and required binaries
 (`virt-install`, `cloud-localds`, `qemu-img`, `yq`) are present.
 

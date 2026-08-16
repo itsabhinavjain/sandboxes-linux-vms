@@ -53,7 +53,7 @@ check_bin() {
 require_env() {
     local required=(
         SANDBOX_HOME LIBVIRT_HOME
-        STORAGE_POOL_IMAGES STORAGE_POOL_ISOS STORAGE_POOL_DISKS STORAGE_POOL_SNAPSHOTS
+        STORAGE_POOL_IMAGES STORAGE_POOL_ISOS STORAGE_POOL_DISKS STORAGE_POOL_SNAPSHOTS STORAGE_POOL_CLOUD_INIT_ISOS
         DEFAULT_CLOUD_IMG DEFAULT_OS_VARIANT DEFAULT_RAM_MB DEFAULT_VCPUS DEFAULT_DISK_GB
     )
     local missing=()
@@ -80,10 +80,11 @@ validate_vmname() {
     fi
 }
 
-# --- Path helpers (all per-VM files live flat in STORAGE_POOL_DISKS) ---
+# --- Path helpers (qcow2 disk + state.yaml live flat in STORAGE_POOL_DISKS;
+# the cloud-init seed ISO lives in STORAGE_POOL_CLOUD_INIT_ISOS) ---
 
 disk_path()  { echo "${STORAGE_POOL_DISKS}/$1.qcow2"; }
-seed_path()  { echo "${STORAGE_POOL_DISKS}/$1-seed.iso"; }
+seed_path()  { echo "${STORAGE_POOL_CLOUD_INIT_ISOS}/$1-seed.iso"; }
 state_path() { echo "${STORAGE_POOL_DISKS}/$1.state.yaml"; }
 
 # base_image_path [image-name] -- defaults to DEFAULT_CLOUD_IMG

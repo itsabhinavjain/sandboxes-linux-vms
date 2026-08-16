@@ -162,13 +162,24 @@ pool: vm-cloudinit
 pool: vm-snapshots
 pool: iso
 
-Abhinav chose : 
-export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"       : Will have the cloud images that I have downloaded from the internet. 
-export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"           : Will have installer-ISOs (an installer) and also the seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init. 
-export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"         : Will have the qcow2 disks 
-export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots" : Will be used in case we have external snapshots. Right now we are planning internal snapshots only. 
+export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"       
+export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"           
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"         
+export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
 
-Note: Ideally have a separate storage_pool for cloud-init which is separate from the isos pool for mental clarity. cloud-init-pool will have the seed-iso that I would have created from cloud-init and will be used for configuration, the iso-pool will have the ones that are operating system installers (I am currently not using them). 
+
+Abhinav chose (2026-08-16, final -- separate cloud-init pool for mental clarity):
+export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"              : Will have the cloud images that I have downloaded from the internet. 
+export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"                  : Will have installer-ISOs (an installer) 
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"                : Will have the qcow2 disks and yaml specifications 
+export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"        : Will be used in case we have external snapshots. Right now we are planning internal snapshots only. 
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init" : Will have seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init.
+
+This keeps cloud-init separate from the isos pool for mental clarity:
+cloud-init-pool (`STORAGE_POOL_CLOUD_INIT_ISOS`) holds the seed-isos created
+from cloud-init and used for configuration; iso-pool (`STORAGE_POOL_ISOS`)
+holds actual operating-system installer ISOs (not currently used).
 
 ```
 VM name = erpnext-demo-01

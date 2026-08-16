@@ -43,6 +43,7 @@ fi
 validate_vmname "$VMNAME"
 
 [[ -d "$STORAGE_POOL_DISKS" ]] || die "STORAGE_POOL_DISKS ($STORAGE_POOL_DISKS) does not exist -- run the SETUP.md bootstrap first."
+[[ -d "$STORAGE_POOL_CLOUD_INIT_ISOS" ]] || die "STORAGE_POOL_CLOUD_INIT_ISOS ($STORAGE_POOL_CLOUD_INIT_ISOS) does not exist -- run the SETUP.md bootstrap first."
 
 if vm_exists "$VMNAME" || [[ -f "$(state_path "$VMNAME")" ]]; then
     die "VM '$VMNAME' already exists. Run scripts/05_destroy_vm.sh $VMNAME first if you want to recreate it."

@@ -52,7 +52,7 @@ done
 # 4. Storage pools defined and running
 # (capture output before grepping -- see the NOTE in common.sh's vm_exists
 # for why piping straight into `grep -q` here would be flaky under pipefail)
-for pool in default iso-pool disk-pool snapshot-pool; do
+for pool in default iso-pool disk-pool snapshot-pool cloudinit-pool; do
     POOL_INFO="$("${VIRSH[@]}" pool-info "$pool" 2>/dev/null || true)"
     if grep -q "State:.*running" <<< "$POOL_INFO"; then
         pass "storage pool '$pool' is defined and running"
@@ -62,7 +62,7 @@ for pool in default iso-pool disk-pool snapshot-pool; do
 done
 
 # 5. Storage directories exist and are setgid
-for dir in "$STORAGE_POOL_IMAGES" "$STORAGE_POOL_ISOS" "$STORAGE_POOL_DISKS" "$STORAGE_POOL_SNAPSHOTS"; do
+for dir in "$STORAGE_POOL_IMAGES" "$STORAGE_POOL_ISOS" "$STORAGE_POOL_DISKS" "$STORAGE_POOL_SNAPSHOTS" "$STORAGE_POOL_CLOUD_INIT_ISOS"; do
     if [[ -d "$dir" ]]; then
         PERMS="$(stat -c '%A' "$dir")"
         GROUP_EXEC_BIT="${PERMS:6:1}"

@@ -73,6 +73,7 @@ export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
 export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
 export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
 
 export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 export DEFAULT_OS_VARIANT="ubuntu24.04"
@@ -97,7 +98,7 @@ Change the permissions : `sudo chmod 644 /etc/profile.d/sandbox.sh`
 grep "^user" /etc/libvirt/qemu.conf
 grep "^group" /etc/libvirt/qemu.conf
 
-mkdir -p ${STORAGE_POOL_IMAGES} ${STORAGE_POOL_ISOS} ${STORAGE_POOL_DISKS} ${STORAGE_POOL_SNAPSHOTS}
+mkdir -p ${STORAGE_POOL_IMAGES} ${STORAGE_POOL_ISOS} ${STORAGE_POOL_DISKS} ${STORAGE_POOL_SNAPSHOTS} ${STORAGE_POOL_CLOUD_INIT_ISOS}
 
 sudo chown -R libvirt-qemu:kvm ${LIBVIRT_HOME}
 sudo chmod -R 775 ${LIBVIRT_HOME}
@@ -134,10 +135,15 @@ sudo virsh pool-define-as snapshot-pool dir --target ${STORAGE_POOL_SNAPSHOTS}
 sudo virsh pool-autostart snapshot-pool
 sudo virsh pool-start snapshot-pool
 
+sudo virsh pool-define-as cloudinit-pool dir --target ${STORAGE_POOL_CLOUD_INIT_ISOS}
+sudo virsh pool-autostart cloudinit-pool
+sudo virsh pool-start cloudinit-pool
+
 sudo virsh pool-refresh default
 sudo virsh pool-refresh iso-pool
 sudo virsh pool-refresh disk-pool
 sudo virsh pool-refresh snapshot-pool
+sudo virsh pool-refresh cloudinit-pool
 
 sudo virsh pool-list --all
 
@@ -145,11 +151,13 @@ sudo virsh pool-info default
 sudo virsh pool-info iso-pool
 sudo virsh pool-info disk-pool
 sudo virsh pool-info snapshot-pool
+sudo virsh pool-info cloudinit-pool
 
 virsh pool-dumpxml default
 virsh pool-dumpxml iso-pool
 virsh pool-dumpxml disk-pool
 virsh pool-dumpxml snapshot-pool
+virsh pool-dumpxml cloudinit-pool
 
 ```
 
@@ -177,6 +185,7 @@ STORAGE_POOL_IMAGES
 STORAGE_POOL_ISOS
 STORAGE_POOL_DISKS
 STORAGE_POOL_SNAPSHOTS
+STORAGE_POOL_CLOUD_INIT_ISOS
 ```
 
 This system-level bootstrap is the baseline. If you want per-checkout

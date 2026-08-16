@@ -21,6 +21,7 @@ export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
 export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
 export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
 export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ```
 

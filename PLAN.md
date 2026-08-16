@@ -29,10 +29,15 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
      files only (e.g. `noble-server-cloudimg-amd64.img`). Read-only/shared.
    - `STORAGE_POOL_DISKS` (`disk-pool`) — per-VM working files, flat,
      directly in this dir (not subdirectories, so libvirt's dir-pool volume
-     scan sees them): `<vmname>.qcow2`, `<vmname>-seed.iso`,
-     `<vmname>.state.yaml`.
+     scan sees them): `<vmname>.qcow2`, `<vmname>.state.yaml`.
+   - `STORAGE_POOL_CLOUD_INIT_ISOS` (`cloudinit-pool`) — cloud-init seed
+     ISOs built by `00_init_vm.sh` (`<vmname>-seed.iso`), kept separate from
+     `STORAGE_POOL_DISKS` and `STORAGE_POOL_ISOS` for mental clarity: this
+     pool holds *generated configuration disks*, not installer media or
+     persistent VM disks.
    - `STORAGE_POOL_ISOS` (`iso-pool`) — reserved for the Option-1
-     ISO-installer path. Unused by this cloud-image flow.
+     ISO-installer path (actual OS installer ISOs). Unused by this
+     cloud-image flow.
    - `STORAGE_POOL_SNAPSHOTS` (`snapshot-pool`) — snapshot files. Only
      meaningful if snapshots end up being external
      (`virsh snapshot-create-as --disk-only`); internal qcow2 snapshots
