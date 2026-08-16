@@ -3,6 +3,19 @@ Note : This file mentions the various changes that we have implemented over time
 
 ## Notes 
 
+*Decision : Status*
+- Cloud-Init : 
+    - Setting up hostname and timezone 
+    - Non root sudo user `abhinav`
+        - ssh keys added 
+        - adding to groups 
+    - Disable root login 
+    - Disable login using password (only through keys) 
+    - Setup updates, upgrades, unattended updates
+- Separate Indempotent Script : 
+    - Tailscale
+    - UFW 
+
 *Note : Status*
 Everything is implemented. Need to start implementing configuration and snapshot related functionalities
 

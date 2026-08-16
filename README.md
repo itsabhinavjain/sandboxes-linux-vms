@@ -46,9 +46,9 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 - `scripts/05_destroy_vm.sh`
 - `scripts/08_status_vm.sh`            # Gives the status and info 
 - `scripts/09_doctor.sh`            # Runs diagnostic tests 
-- Configuration (not yet built, see PLAN.md Phase 6)
-    - `scripts/11_configure-automated_vm.sh`
-    - `scripts/12_configure-manual_vm.sh`
+- Configuration
+    - `scripts/11_configure-automated_vm.sh`   # Joins the VM to Tailscale and locks down UFW (post-boot, re-runnable; see lifecycle.md)
+    - `scripts/12_configure-manual_vm.sh`      # (not yet built, see PLAN.md Phase 6)
 - Snapshots (not yet built, see PLAN.md Phase 6)
     - `scripts/21_snapshot_vm.sh`
     - `scripts/22_revert_vm.sh`

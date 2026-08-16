@@ -60,7 +60,19 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    silently pile up running after every laptop reboot. Recorded in
    `state.yaml` (`autostart: true|false`) and surfaced in `08_status_vm.sh`,
    `51_info_vms.sh`, `50_list_vms.sh`.
-9. **Snapshots (Phase 6) will use internal qcow2 snapshots, not external.**
+9. **Tailscale/UFW live in `11_configure-automated_vm.sh` (post-boot, over
+   SSH), not in `user-data.tmpl`/cloud-init.** Two reasons: (a) cloud-init
+   only runs once -- `00_init_vm.sh` disables it after first boot -- so
+   anything baked into the template can never be changed on an existing VM
+   without destroy+recreate, whereas a script run over SSH is re-runnable;
+   (b) joining Tailscale needs a secret (`TAILSCALE_AUTHKEY`), and design
+   decision #2 keeps `user-data.tmpl` limited to substituting only
+   `${VMNAME}` -- putting a secret through that same `envsubst` path would
+   mean it lands in the rendered cloud-init seed ISO on disk. The script
+   enforces that UFW is only enabled after `tailscale0` is confirmed up,
+   since enabling a deny-by-default firewall before that would lock out
+   SSH with no fallback besides `virsh console`.
+10. **Snapshots (Phase 6) will use internal qcow2 snapshots, not external.**
    Internal snapshots live inside the same qcow2 file
    (`virsh snapshot-create-as`/`snapshot-revert`/`snapshot-delete`), so
    `disk_path()` and every script's one-qcow2-per-VM assumption stays
@@ -115,7 +127,7 @@ scripts/
   09_doctor.sh
   50_list_vms.sh
   51_info_vms.sh
-  11_configure-automated_vm.sh   # Phase 6, not built yet
+  11_configure-automated_vm.sh
   12_configure-manual_vm.sh      # Phase 6, not built yet
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
@@ -147,7 +159,7 @@ lifecycle.md                # filled in with per-script contracts
 SANDBOX_HOME, LIBVIRT_HOME, STORAGE_POOL_IMAGES, STORAGE_POOL_ISOS,
 STORAGE_POOL_DISKS, STORAGE_POOL_SNAPSHOTS, DEFAULT_CLOUD_IMG,
 DEFAULT_OS_VARIANT, DEFAULT_RAM_MB, DEFAULT_VCPUS, DEFAULT_DISK_GB,
-TAILSCALE_TAILNET
+TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 ```
 
 ## Script specs
@@ -181,7 +193,15 @@ TAILSCALE_TAILNET
   live status from `$VIRSH list --all`, print a table.
 - **51_info_vms.sh** — no vmname arg; loop over all `STORAGE_POOL_DISKS/*.state.yaml`
   and dump full state file detail + Tailscale hostname hint per VM.
-- **11/12/21/22** — deferred to Phase 6 (see open question above).
+- **11_configure-automated_vm.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
+  resolve an SSH host for the VM (Tailscale hostname, else NAT/DHCP lease
+  via `$VIRSH domifaddr --source lease`), upload and run a small root
+  provisioning script over that SSH connection: install + `tailscale up`
+  (authkey piped over stdin, never argv/env, to avoid `ps` exposure), then
+  `ufw default deny incoming` / `allow in on tailscale0` / `ufw enable` --
+  but only once `tailscale0` is confirmed up. Updates `.tailscale`/`.ufw`
+  in the VM's state file.
+- **12/21/22** — deferred to Phase 6 (see open question above).
 
 ## Build order / phases
 
@@ -194,7 +214,9 @@ TAILSCALE_TAILNET
 - **Phase 4 — Diagnostics.** `09_doctor.sh`.
 - **Phase 5 — Cleanup.** Delete `previous_scripts/` once Phase 1/2 has been
   tested end-to-end against a real VM.
-- **Phase 6 — Deferred.** `11/12` configure scripts, `21/22` snapshot
+- **Phase 5.5 — Automated configuration.** `11_configure-automated_vm.sh`
+  (Tailscale + UFW, post-boot over SSH).
+- **Phase 6 — Deferred.** `12_configure-manual_vm.sh`, `21/22` snapshot
   scripts, once the snapshot-pool (internal vs external) question is
   resolved.
 
@@ -280,6 +302,16 @@ Two real bugs found and fixed during this testing pass (not caught by
    the captured string (`<<<`) instead of piping live. Fixed in all three
    locations.
 
+**Not yet tested: `11_configure-automated_vm.sh` end-to-end.** Written and
+syntax-/schema-checked (`bash -n`, and `cloud-init schema` against the
+rendered `user-data.tmpl`), but not run against a real VM -- needs a real
+`TAILSCALE_AUTHKEY` and a running VM to verify: SSH host resolution (both
+the Tailscale-hostname and DHCP-lease-IP paths), the Tailscale install +
+`tailscale up`, and that UFW ends up allowing reconnection over
+`tailscale0` while blocking the NAT interface. The `--skip-ufw` refusal
+path (attempting `--skip-tailscale` together with UFW enabled, when
+`tailscale0` isn't already up) should also be exercised.
+
 ## Status
 
 - [x] Phase 0 — Foundations
@@ -288,6 +320,8 @@ Two real bugs found and fixed during this testing pass (not caught by
 - [x] Phase 3 — Fleet view (tested against a real host, see above)
 - [x] Phase 4 — Diagnostics (tested against a real host, see above)
 - [x] Phase 5 — Cleanup (previous_scripts/ removed)
-- [ ] Phase 6 — Deferred (configure + snapshot scripts)
+- [x] Phase 5.5 — Automated configuration (`11_configure-automated_vm.sh`;
+      not yet tested against a real host, see note below)
+- [ ] Phase 6 — Deferred (`12_configure-manual_vm.sh` + snapshot scripts)
 
 (Update the checklist above as phases complete.)

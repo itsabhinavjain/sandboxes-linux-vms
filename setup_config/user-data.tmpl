@@ -17,15 +17,32 @@ users:
 
 package_update: true
 package_upgrade: true
+package_reboot_if_required: true   # reboot once at first boot if the kernel/libs need it
 
 packages:
   - curl
   - vim
   - htop
   - tmux
+  - ufw
+  - unattended-upgrades
+
+write_files:
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
 
 runcmd:
-  - curl -fsSL https://get.docker.com | sh
+  # Docker CE via the pinned official apt repo (GPG-signed), not `curl | sh`
+  # -- verifiable and consistent with how Tailscale is installed later by
+  # 11_configure-automated_vm.sh.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - bash -c 'source /etc/os-release && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - usermod -aG docker abhinav
   - touch /etc/cloud/cloud-init.disabled
 
