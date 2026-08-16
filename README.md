@@ -20,13 +20,17 @@ export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
 export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
 export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
-export DEFAULT_CLOUD_IMG = "noble-server-cloudimg-amd64"
+export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ```
 
 ## Requirements for the repo 
-- Can create .env from env.sample
-- Can be override of some of the environment variables set at the system level if there is a .env file in the repo 
-- Some of the parameters can further be overriden by adding parameters to the scripts
+- Copy [`env.sample`](./env.sample) to `.env` in the repo root and uncomment/edit whatever you want to override: `cp env.sample .env`
+- Environment variables are resolved with the following precedence, lowest to highest:
+  1. System-level environment variables (see above)
+  2. `.env` in the repo root, if present -- overrides #1
+  3. Parameters passed to a script (e.g. `--ram` on `00_init.sh`) -- overrides both #1 and #2
+- `.env` is gitignored, so host- or checkout-specific overrides never get committed
+- `scripts/lib/common.sh` loads `.env` automatically (every script sources `common.sh`); nothing else to run
 
 ## Scripts 
 - See [lifecycle.md](./lifecycle.md) for the full contract of each script.

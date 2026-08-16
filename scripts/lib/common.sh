@@ -13,6 +13,20 @@ set -euo pipefail
 # caller's working directory.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Load .env (repo root), if present. Precedence, lowest to highest:
+#   1. System-level environment variables (e.g. /etc/profile.d/sandbox.sh)
+#   2. .env in the repo root (this)
+#   3. Flags passed to a script
+# `set -a` exports every variable assigned while sourcing .env, so even
+# plain `KEY=value` lines (no `export`) take effect and override whatever
+# was already in the environment from step 1.
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT/.env"
+    set +a
+fi
+
 # Always talk to the system libvirtd explicitly -- never rely on the
 # ambient default URI (which may be qemu:///session for a non-root user).
 VIRSH=(virsh -c qemu:///system)
@@ -50,7 +64,7 @@ require_env() {
         fi
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
-        die "Missing required environment variables: ${missing[*]}. Copy env.sample and source it (see SETUP.md)."
+        die "Missing required environment variables: ${missing[*]}. Set them at the system level (see SETUP.md) or copy env.sample to .env in the repo root and fill them in."
     fi
 }
 

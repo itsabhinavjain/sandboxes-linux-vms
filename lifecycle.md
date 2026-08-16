@@ -6,6 +6,12 @@ unless noted, and sources `scripts/lib/common.sh`. None require `sudo` (see
 SETUP.md / PLAN.md for why). State is tracked per-VM in
 `${STORAGE_POOL_DISKS}/<vmname>.state.yaml`.
 
+`scripts/lib/common.sh` also loads `.env` from the repo root (if present)
+before any script logic runs. Environment variables resolve lowest to
+highest priority: system-level env vars < `.env` < flags passed to the
+script. See [README.md](./README.md#requirements-for-the-repo) and
+[env.sample](./env.sample).
+
 ## Sandbox lifecycle
 
 ### `scripts/00_init.sh <vmname> [--ram N] [--vcpus N] [--disk N] [--image NAME] [--autostart|--no-autostart]`

@@ -179,6 +179,14 @@ STORAGE_POOL_DISKS
 STORAGE_POOL_SNAPSHOTS
 ```
 
+This system-level bootstrap is the baseline. If you want per-checkout
+overrides (a different storage pool location, different defaults) without
+touching `/etc/profile.d/sandbox.sh`, copy [`env.sample`](./env.sample) to
+`.env` in the repo root instead -- `scripts/lib/common.sh` loads it
+automatically and it takes precedence over the system-level variables set
+above. See [README.md](./README.md#requirements-for-the-repo) for the full
+precedence order.
+
 ## Download the cloud img 
 ```
 curl -fsSL -o "$STORAGE_POOL_IMAGES/noble-server-cloudimg-amd64.img" \
