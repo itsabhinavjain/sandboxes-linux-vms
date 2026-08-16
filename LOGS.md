@@ -3,6 +3,9 @@ Note : This file mentions the various changes that we have implemented over time
 
 ## Notes 
 
+*Note : Status*
+Everything is implemented. Need to start implementing configuration and snapshot related functionalities
+
 *Decision : Autostart settings*
 The VMs can be setup so that they autostart when the host linux machine restarts. This is now managed in this repo. 
 
