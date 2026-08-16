@@ -1,6 +1,7 @@
 # Sandbox - Linux VMs
 The repo can be used to quickly have new linux vms provisioned on a Linux host. 
 - Step 1 : Make sure that the Linux host has been setup as defined [SETUP.md](./SETUP.md)
+    - You might want to run the doctor script to check if the host and the environment variables have been set up properly. 
 - Step 2 : Use the Lifecycle scripts to create and manage the virtual machines
 
 ## Requirements on the host machine 
@@ -45,13 +46,13 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 - `scripts/04_resume_vm.sh`
 - `scripts/05_destroy_vm.sh`
 - `scripts/08_status_vm.sh`            # Gives the status and info 
-- `scripts/09_doctor.sh`            # Runs diagnostic tests 
+- `scripts/09_doctor.sh`               # Runs diagnostic tests 
 - Configuration
-    - `scripts/11_configure-automated_vm.sh`   # Joins the VM to Tailscale and locks down UFW (post-boot, re-runnable; see lifecycle.md)
-    - `scripts/12_configure-manual_vm.sh`      # (not yet built, see PLAN.md Phase 6)
+    - `scripts/11_configure-automated_vm.sh`   
+    - `scripts/12_configure-manual_vm.sh`      
 - Snapshots (not yet built, see PLAN.md Phase 6)
     - `scripts/21_snapshot_vm.sh`
-    - `scripts/22_revert_vm.sh`
+    - `scripts/22_restore_vm.sh`
 
 ### Managing Sandboxes 
 - `scripts/50_list_vms.sh`             # Will list all the vms and their statuses

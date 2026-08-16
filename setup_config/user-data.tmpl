@@ -34,9 +34,6 @@ write_files:
       APT::Periodic::Unattended-Upgrade "1";
 
 runcmd:
-  # Docker CE via the pinned official apt repo (GPG-signed), not `curl | sh`
-  # -- verifiable and consistent with how Tailscale is installed later by
-  # 11_configure-automated_vm.sh.
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc

@@ -3,6 +3,27 @@ Note : This file mentions the various changes that we have implemented over time
 
 ## Notes 
 
+*Decision : Managing Cloud Images*
+Operational rule : Treat the base cloud images as immutable.
+
+```
+                  GOLDEN IMAGES
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+        ▼              ▼              ▼
+     Ubuntu         Ubuntu         Rocky
+      24.04          22.04           9
+        │
+        ├──────────────┐
+        ▼              ▼
+   VM overlay      VM overlay
+        │              │
+        ▼              ▼
+ erpnext-demo-01   odoo-demo-01
+
+```
+
 *Decision : Networking*
 - Try to connect the VM directly to Tailnet. (Simple and preferred)
     - Tailscale SSH vs Normal SSH 

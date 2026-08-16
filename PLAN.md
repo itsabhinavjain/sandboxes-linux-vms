@@ -359,3 +359,18 @@ step via `confirm` leaves `.tailscale`/`.ufw` as `skipped` in state.yaml.
 - [ ] Phase 6 — Deferred (`21/22` snapshot scripts)
 
 (Update the checklist above as phases complete.)
+
+
+
+## Wishlist  
+- Install qemu guest agent in the virtual machines. (can be done through cloud-init as well)
+```
+sudo apt install qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent
+```
+Useful for :
+```
+virsh domifaddr
+virsh shutdown
+virsh reboot
+```
