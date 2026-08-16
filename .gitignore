@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# This is a bash-scripts repo, not Python -- the generic `lib/` rule above
+# (meant for Python build artifacts) would otherwise silently hide our
+# scripts/lib/ (shared helper functions for the lifecycle scripts).
+!scripts/lib/
+!scripts/lib/**

@@ -28,6 +28,14 @@ sudo apt install -y virt-manager
 sudo apt install -y genisoimage
 sudo apt install -y cloud-image-utils 
 
+# yq -- used to read/write state.yaml. The `yq` package in apt is NOT
+# guaranteed to be mikefarah/yq (Go); install the Go binary explicitly so
+# the -i / `.key = "value"` syntax used by lib/common.sh works:
+sudo curl -fsSL -o /usr/local/bin/yq \
+    https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+sudo chmod +x /usr/local/bin/yq
+yq --version   # should print "yq (https://github.com/mikefarah/yq/) version ..."
+
 sudo usermod -aG libvirt $USER
 sudo usermod -aG kvm $USER
 
@@ -37,9 +45,13 @@ sudo systemctl start libvirtd
 # Log out and back in 
 sudo systemctl status libvirtd
 
+groups
+
 sudo virsh list --all
 sudo virsh net-list --all
 sudo virsh pool-list --all
+
+
 ```
 
 
@@ -61,6 +73,13 @@ export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
 export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
 export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
+
+export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
+export DEFAULT_OS_VARIANT="ubuntu24.04"
+export DEFAULT_RAM_MB="2048"
+export DEFAULT_VCPUS="2"
+export DEFAULT_DISK_GB="20"
+
 ```
 `sudo chmod 644 /etc/profile.d/sandbox.sh`
 
@@ -71,8 +90,15 @@ Bootstrap script
 grep "^user" /etc/libvirt/qemu.conf
 grep "^group" /etc/libvirt/qemu.conf
 
+mkdir -p ${STORAGE_POOL_IMAGES} ${STORAGE_POOL_ISOS} ${STORAGE_POOL_DISKS} ${STORAGE_POOL_SNAPSHOTS}
+
 sudo chown -R libvirt-qemu:kvm ${LIBVIRT_HOME}
 sudo chmod -R 775 ${LIBVIRT_HOME}
+
+# setgid on all pool directories: files the lifecycle scripts create (as
+# your regular user, no sudo) inherit group `kvm`, so libvirt-qemu (a member
+# of kvm) can read/write them without needing to be chown'd afterwards.
+sudo find ${LIBVIRT_HOME} -type d -exec chmod g+s {} \;
 
 ls -la ${LIBVIRT_HOME}
 
@@ -126,10 +152,16 @@ Checking
 virt-install --version
 cloud-init --version
 qemu-img --version
+yq --version
 
 virsh -c qemu:///system list --all
 virsh -c qemu:///system pool-list --all
 virsh -c qemu:///system net-list --all
+
+# Confirm the lifecycle scripts can run without sudo (requires the
+# usermod -aG libvirt/kvm above and a fresh login session):
+virsh -c qemu:///system list --all
+
 ```
 
 
@@ -140,4 +172,10 @@ STORAGE_POOL_IMAGES
 STORAGE_POOL_ISOS
 STORAGE_POOL_DISKS
 STORAGE_POOL_SNAPSHOTS
+```
+
+Download the cloud img 
+```
+curl -fsSL -o "$STORAGE_POOL_IMAGES/noble-server-cloudimg-amd64.img" \
+  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 ```

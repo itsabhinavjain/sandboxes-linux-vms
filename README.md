@@ -6,26 +6,30 @@
 - `state.yaml` : Will have the state of the vm and will be kept updated by the scripts. 
 
 ## Scripts 
+All scripts live in [`scripts/`](./scripts) and are run from the repo root
+(e.g. `./scripts/00_init.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
+See [lifecycle.md](./lifecycle.md) for the full contract of each script.
+
 ### Sandbox Lifecycle Scripts 
-- `00_init.sh`                      # Helps in setting up the hostname etc. It should check that the same name is not currently in use. It should also ask for specifications (with defaults) for RAM, CPU, Disk Size etc 
-- `01_start.sh`                     # Starts the VM 
-- `02_stop.sh`
-- `03_reboot.sh`
-- `04_resume.sh`
-- `05_destroy.sh`
-- `08_status.sh`                    # Gives the status and info 
-- `09_doctor.sh`                    # Runs diagnostic tests 
-- Configuration 
-    - `11_configure-automated.sh`
-    - `12_configure-manual.sh`
-- Snapshots
-    - `21_snapshot.sh`
-    - `22_revert.sh`
+- `scripts/00_init.sh`              # Helps in setting up the hostname etc. It should check that the same name is not currently in use. It should also ask for specifications (with defaults) for RAM, CPU, Disk Size etc 
+- `scripts/01_start.sh`             # Starts the VM 
+- `scripts/02_stop.sh`
+- `scripts/03_reboot.sh`
+- `scripts/04_resume.sh`
+- `scripts/05_destroy.sh`
+- `scripts/08_status.sh`            # Gives the status and info 
+- `scripts/09_doctor.sh`            # Runs diagnostic tests 
+- Configuration (not yet built, see PLAN.md Phase 6)
+    - `scripts/11_configure-automated.sh`
+    - `scripts/12_configure-manual.sh`
+- Snapshots (not yet built, see PLAN.md Phase 6)
+    - `scripts/21_snapshot.sh`
+    - `scripts/22_revert.sh`
 
 
 ### Managing Sandboxes 
-- list_vms.sh                      # Will list all the vms and their statuses
-- info_vms.sh                      # Will list the IP address etc 
+- `scripts/list_vms.sh`             # Will list all the vms and their statuses
+- `scripts/info_vms.sh`             # Will list the IP address etc 
 
 
 ## Environment 
