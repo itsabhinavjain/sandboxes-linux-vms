@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/08_status.sh <vmname>
+# Usage: scripts/08_status_vm.sh <vmname>
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

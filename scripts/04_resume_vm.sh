@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/04_resume.sh <vmname>
+# Usage: scripts/04_resume_vm.sh <vmname>
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

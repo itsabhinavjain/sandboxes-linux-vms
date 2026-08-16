@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/03_reboot.sh <vmname>
+# Usage: scripts/03_reboot_vm.sh <vmname>
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

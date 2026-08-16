@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/02_stop.sh <vmname> [--force]
+# Usage: scripts/02_stop_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

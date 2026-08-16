@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/list_vms.sh
+# Usage: scripts/50_list_vms.sh
 #
 # Scans STORAGE_POOL_DISKS for all managed VM state files and prints a table
 # cross-referencing state.yaml (authoritative resource config) against live

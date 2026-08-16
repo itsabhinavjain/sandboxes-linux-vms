@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Usage: scripts/00_init.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
+# Usage: scripts/00_init_vm.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
 #
 # Defines a new VM without starting it: creates a qcow2 overlay disk backed
 # by the base cloud image, builds a cloud-init seed ISO, and `virsh define`s
-# the domain. Run 01_start.sh afterwards to boot it.
+# the domain. Run 01_start_vm.sh afterwards to boot it.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 
@@ -45,7 +45,7 @@ validate_vmname "$VMNAME"
 [[ -d "$STORAGE_POOL_DISKS" ]] || die "STORAGE_POOL_DISKS ($STORAGE_POOL_DISKS) does not exist -- run the SETUP.md bootstrap first."
 
 if vm_exists "$VMNAME" || [[ -f "$(state_path "$VMNAME")" ]]; then
-    die "VM '$VMNAME' already exists. Run scripts/05_destroy.sh $VMNAME first if you want to recreate it."
+    die "VM '$VMNAME' already exists. Run scripts/05_destroy_vm.sh $VMNAME first if you want to recreate it."
 fi
 
 BASE_IMAGE="$(base_image_path "$IMAGE")"
@@ -59,7 +59,7 @@ cleanup() {
     local rc=$?
     [[ -n "$RENDER_DIR" && -d "$RENDER_DIR" ]] && rm -rf "$RENDER_DIR"
     if [[ $rc -ne 0 ]]; then
-        log "00_init.sh failed (exit $rc) -- rolling back partial state for '$VMNAME'"
+        log "00_init_vm.sh failed (exit $rc) -- rolling back partial state for '$VMNAME'"
         "${VIRSH[@]}" destroy "$VMNAME" >/dev/null 2>&1 || true
         "${VIRSH[@]}" undefine "$VMNAME" --nvram >/dev/null 2>&1 || true
         rm -f "$DISK_PATH" "$SEED_PATH" "$(state_path "$VMNAME")"
@@ -110,4 +110,4 @@ fi
 
 state_set "$VMNAME" .status "defined"
 
-log "VM '$VMNAME' defined (not started). Run: scripts/01_start.sh $VMNAME"
+log "VM '$VMNAME' defined (not started). Run: scripts/01_start_vm.sh $VMNAME"

@@ -83,7 +83,7 @@ export DEFAULT_DISK_GB="20"
 export DEFAULT_AUTOSTART="false"
 
 # Used for SSH connection hints (vmname.<tailnet>.ts.net) and the
-# ssh-keygen -R reminder printed by 05_destroy.sh. Set this to your tailnet
+# ssh-keygen -R reminder printed by 05_destroy_vm.sh. Set this to your tailnet
 # name, e.g. "tailnet-name.ts.net" or leave unset if you don't use Tailscale.
 export TAILSCALE_TAILNET=""
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/05_destroy.sh <vmname> [--force]
+# Usage: scripts/05_destroy_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Usage: scripts/01_start.sh <vmname>
+# Usage: scripts/01_start_vm.sh <vmname>
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 
 VMNAME="${1:?Usage: $0 <vmname>}"
 validate_vmname "$VMNAME"
 
-[[ -f "$(state_path "$VMNAME")" ]] || die "VM '$VMNAME' has no state file -- run scripts/00_init.sh $VMNAME first."
-vm_exists "$VMNAME" || die "VM '$VMNAME' is not defined in libvirt -- run scripts/00_init.sh $VMNAME first."
+[[ -f "$(state_path "$VMNAME")" ]] || die "VM '$VMNAME' has no state file -- run scripts/00_init_vm.sh $VMNAME first."
+vm_exists "$VMNAME" || die "VM '$VMNAME' is not defined in libvirt -- run scripts/00_init_vm.sh $VMNAME first."
 
 if vm_is_running "$VMNAME"; then
     log "VM '$VMNAME' is already running."
