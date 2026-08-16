@@ -368,7 +368,9 @@ step via `confirm` leaves `.tailscale`/`.ufw` as `skipped` in state.yaml.
 
 
 ## Wishlist  
-- Install qemu guest agent in the virtual machines. (can be done through cloud-init as well)
+- [ ] Check the networking using Tailscale. See if you want to do it automatically or have a manual setup 
+- [ ] Check using the vms - how will you ssh into the machines etc 
+- [ ] Install qemu guest agent in the virtual machines. (can be done through cloud-init as well)
 ```
 sudo apt install qemu-guest-agent
 sudo systemctl enable --now qemu-guest-agent
@@ -378,4 +380,21 @@ Useful for :
 virsh domifaddr
 virsh shutdown
 virsh reboot
+```
+
+- [ ] The `info` and the `list` scripts can be a little more detailed where you can give the IP addresses of all the vms etc 
+```
+for vm in $(virsh list --name); do
+    printf "%-30s " "$vm"
+    virsh domifaddr "$vm" --source agent 2>/dev/null |
+        awk '$3 == "ipv4" {print $4}'
+done
+```
+
+```
+# Primary : 
+virsh domifaddr VM --source agent
+
+# DHCP Fallback : 
+virsh net-dhcp-leases default
 ```

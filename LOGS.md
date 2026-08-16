@@ -3,6 +3,17 @@ Note : This file mentions the various changes that we have implemented over time
 
 ## Notes 
 
+*Decision : Storage Pools*
+- Moved from a 4 pool system to a 5 pool system 
+
+```
+export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"              : Will have the cloud images that I have downloaded from the internet. 
+export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"                  : Will have installer-ISOs (an installer). this is not being used right now. Currently we are working with cloud images. 
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"                : Will have the qcow2 disks and yaml specifications 
+export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"        : Will be used in case we have external snapshots. Right now we are planning internal snapshots only. 
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init" : Will have seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init. 
+```
+
 *Decision : Managing Cloud Images*
 Operational rule : Treat the base cloud images as immutable.
 

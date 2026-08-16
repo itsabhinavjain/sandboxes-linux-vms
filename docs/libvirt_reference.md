@@ -155,31 +155,13 @@ After that, the seed disk generally has no ongoing role.
 
 Storage pools 
 
-In general 
-pool: vm-images
-pool: vm-disks
-pool: vm-cloudinit
-pool: vm-snapshots
-pool: iso
-
-export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"       
-export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"           
-export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"         
-export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
-export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
-
-
-Abhinav chose (2026-08-16, final -- separate cloud-init pool for mental clarity):
+```
 export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"              : Will have the cloud images that I have downloaded from the internet. 
-export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"                  : Will have installer-ISOs (an installer) 
-export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"                : Will have the qcow2 disks and yaml specifications 
+export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"                  : Will have installer-ISOs (an installer). this is not being used right now. Currently we are working with cloud images. 
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"                : Will have the qcow2 disks and yaml specifications. Actual VM disks.  
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"        : Will be used in case we have external snapshots. Right now we are planning internal snapshots only. 
-export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init" : Will have seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init.
-
-This keeps cloud-init separate from the isos pool for mental clarity:
-cloud-init-pool (`STORAGE_POOL_CLOUD_INIT_ISOS`) holds the seed-isos created
-from cloud-init and used for configuration; iso-pool (`STORAGE_POOL_ISOS`)
-holds actual operating-system installer ISOs (not currently used).
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init" : Will have seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init. 
+```
 
 ```
 VM name = erpnext-demo-01
@@ -221,10 +203,38 @@ display IP
 
 Snapshots 
 
-
-
+--- 
 
 ## Libvirt Reference
+
+### qemu-img : virtual disk toolbox 
+For manipulating virtual disk images 
+```
+qemu-img create
+qemu-img info
+qemu-img resize
+qemu-img convert
+```
+
+### virt-install : Creating a VM 
+This creates a libvirt domain definition 
+```
+virt-install \
+  --name erpnext-demo-01 \
+  --memory 8192 \
+  --vcpus 4 \
+  ...
+
+```
+
+### cloud-localds : Creates seed-iso from user files
+```
+user-data
+meta-data
+network-config
+```
+
+### virsh : Managing the vms 
 ```
 sudo virsh list --all                                     # all VMs and their state
 
@@ -258,4 +268,5 @@ sudo virsh snapshot-list myvm                             # list snapshots
 sudo virsh snapshot-create-as myvm snap1                  # create snapshot
 sudo virsh snapshot-revert myvm snap1                     # revert
 sudo virsh snapshot-delete myvm snap1                     # delete snapshot
+
 ```
