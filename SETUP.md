@@ -6,8 +6,7 @@ This file mentions the basic setup that is required on the host machine to enabl
 4) VM lifecycle scripts
 5) Check the environment 
 
-
-Installing and setting up with dependencies 
+## Installing and setting up with dependencies 
 ```
 egrep -c '(vmx|svm)' /proc/cpuinfo
 sudo apt install -y cpu-checker
@@ -54,8 +53,9 @@ sudo virsh pool-list --all
 
 ```
 
+## Bootstrap script
+Filename : `sudo nano /etc/profile.d/sandbox.sh`
 
-`sudo nano /etc/profile.d/sandbox.sh`
 ```
 #!/usr/bin/env bash
 
@@ -80,12 +80,19 @@ export DEFAULT_RAM_MB="2048"
 export DEFAULT_VCPUS="2"
 export DEFAULT_DISK_GB="20"
 
+export DEFAULT_AUTOSTART="false"
+
+# Used for SSH connection hints (vmname.<tailnet>.ts.net) and the
+# ssh-keygen -R reminder printed by 05_destroy.sh. Set this to your tailnet
+# name, e.g. "tailnet-name.ts.net" or leave unset if you don't use Tailscale.
+export TAILSCALE_TAILNET=""
+
 ```
-`sudo chmod 644 /etc/profile.d/sandbox.sh`
 
+Change the permissions : `sudo chmod 644 /etc/profile.d/sandbox.sh`
 
+## Configuring Libvirt and the storage pools 
 
-Bootstrap script 
 ```
 grep "^user" /etc/libvirt/qemu.conf
 grep "^group" /etc/libvirt/qemu.conf
@@ -127,7 +134,6 @@ sudo virsh pool-define-as snapshot-pool dir --target ${STORAGE_POOL_SNAPSHOTS}
 sudo virsh pool-autostart snapshot-pool
 sudo virsh pool-start snapshot-pool
 
-
 sudo virsh pool-refresh default
 sudo virsh pool-refresh iso-pool
 sudo virsh pool-refresh disk-pool
@@ -147,7 +153,7 @@ virsh pool-dumpxml snapshot-pool
 
 ```
 
-Checking 
+## Checking configurations
 ```
 virt-install --version
 cloud-init --version
@@ -164,7 +170,6 @@ virsh -c qemu:///system list --all
 
 ```
 
-
 vm Lifecycle scripts can now assume it has 
 ```
 LIBVIRT_HOME
@@ -174,7 +179,7 @@ STORAGE_POOL_DISKS
 STORAGE_POOL_SNAPSHOTS
 ```
 
-Download the cloud img 
+## Download the cloud img 
 ```
 curl -fsSL -o "$STORAGE_POOL_IMAGES/noble-server-cloudimg-amd64.img" \
   https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
