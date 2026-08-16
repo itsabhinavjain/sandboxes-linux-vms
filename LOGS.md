@@ -3,7 +3,13 @@ Note : This file mentions the various changes that we have implemented over time
 
 ## Notes 
 
-*Decision : Status*
+*Decision : Networking*
+- Try to connect the VM directly to Tailnet. (Simple and preferred)
+    - Tailscale SSH vs Normal SSH 
+        - Make sure that ssh port is open. I dont want to use Tailscale ssh. This is so that I am not unknowingly get locked out of my machine because of Tailscale configurations. 
+- Alternate way could be to connect using host and subrouter. Dont do this yet, unless required to bypass company firewalls. 
+
+*Decision : Cloud-init and indempotent configuration scripts*
 - Cloud-Init : 
     - Setting up hostname and timezone 
     - Non root sudo user `abhinav`
