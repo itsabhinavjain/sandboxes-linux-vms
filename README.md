@@ -6,11 +6,11 @@ The repo can be used to quickly have new linux vms provisioned on a Linux host.
 ## Requirements on the host machine 
 The linux host machine should have various software and environment (system level) setup for the repo to work 
 
-### Environment 
+### Environment (Host machine - System level)
 - Libvirt related setup : [SETUP.md](./SETUP.md)
 - Cockpit for web based gui
 
-### Environment variables 
+### Environment variables (Host machine - System level)
 - Libvirt should be setup in a way that the following directories should be setup as storage pools 
 
 ```
@@ -22,6 +22,11 @@ export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
 export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
 export DEFAULT_CLOUD_IMG = "noble-server-cloudimg-amd64"
 ```
+
+## Requirements for the repo 
+- Can create .env from env.sample
+- Can be override of some of the environment variables set at the system level if there is a .env file in the repo 
+- Some of the parameters can further be overriden by adding parameters to the scripts
 
 ## Scripts 
 - See [lifecycle.md](./lifecycle.md) for the full contract of each script.

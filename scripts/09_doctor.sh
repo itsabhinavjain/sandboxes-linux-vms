@@ -31,11 +31,13 @@ else
     log "kvm-ok not installed -- skipping (optional check)"
 fi
 
-# 2. libvirtd active
-if systemctl is-active --quiet libvirtd; then
-    pass "libvirtd is active"
+# 2. libvirtd active (or socket-activatable -- libvirtd.service is commonly
+# socket-activated, so it can be legitimately inactive until something
+# connects to it; treat the socket unit as equally acceptable)
+if systemctl is-active --quiet libvirtd || systemctl is-active --quiet libvirtd.socket; then
+    pass "libvirtd is active (or socket-activatable)"
 else
-    fail "libvirtd is active"
+    fail "libvirtd is active (or socket-activatable)"
 fi
 
 # 3. Required binaries present
