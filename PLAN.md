@@ -60,12 +60,13 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    silently pile up running after every laptop reboot. Recorded in
    `state.yaml` (`autostart: true|false`) and surfaced in `08_status_vm.sh`,
    `51_info_vms.sh`, `50_list_vms.sh`.
-9. **Tailscale/UFW live in `11_configure-automated_vm.sh` (post-boot, over
-   SSH), not in `user-data.tmpl`/cloud-init.** Two reasons: (a) cloud-init
-   only runs once -- `00_init_vm.sh` disables it after first boot -- so
-   anything baked into the template can never be changed on an existing VM
-   without destroy+recreate, whereas a script run over SSH is re-runnable;
-   (b) joining Tailscale needs a secret (`TAILSCALE_AUTHKEY`), and design
+9. **Tailscale/UFW live in a post-boot configuration script run over SSH
+   (currently `12_configure-manual_vm.sh`), not in `user-data.tmpl`/
+   cloud-init.** Two reasons: (a) cloud-init only runs once --
+   `00_init_vm.sh` disables it after first boot -- so anything baked into
+   the template can never be changed on an existing VM without
+   destroy+recreate, whereas a script run over SSH is re-runnable; (b)
+   joining Tailscale needs a secret (`TAILSCALE_AUTHKEY`), and design
    decision #2 keeps `user-data.tmpl` limited to substituting only
    `${VMNAME}` -- putting a secret through that same `envsubst` path would
    mean it lands in the rendered cloud-init seed ISO on disk. The script
@@ -83,6 +84,24 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    a personal sandbox tool's "snapshot before I break this, revert if it
    goes wrong" use case needs. `STORAGE_POOL_SNAPSHOTS` stays defined but
    unused for now.
+11. **`12_configure-manual_vm.sh` is the interactive counterpart to
+   `11_configure-automated_vm.sh`, not a `virsh console` wrapper -- and for
+   now it's the *only* one of the two that's implemented.** The job (join
+   tailnet, lock UFW to tailscale0-only) is done interactively: `confirm`s
+   before each step (install Tailscale, `tailscale up`, enable UFW) and runs
+   it over `ssh -tt` so output streams live instead of running unattended.
+   Nomenclature stays `11` = automated, `12` = manual/interactive -- `11_...`
+   is deliberately kept as a stub (see point 12) rather than made interactive
+   itself, so the split is ready whenever a fire-and-forget path is wanted.
+12. **`11_configure-automated_vm.sh` is a placeholder, not deleted.** As of
+   2026-08-16 the user doesn't want an automated (non-interactive)
+   configuration pass yet -- `12_...` covers the current need. Rather than
+   delete `11_...`, it's kept as a stub (usage comment + `die` pointing at
+   `12_...`) so the file, its name, and its slot in the numbering stay
+   reserved for when a fire-and-forget version is wanted later. When that
+   happens, port the old provisioning logic (single non-interactive SSH run,
+   authkey piped over stdin, same ordering-safety rule) back into `11_...`
+   -- it's preserved in git history (see the commit that stubbed it out).
 
 ## Best practices adopted (vs. previous_scripts/)
 
@@ -127,8 +146,8 @@ scripts/
   09_doctor.sh
   50_list_vms.sh
   51_info_vms.sh
-  11_configure-automated_vm.sh
-  12_configure-manual_vm.sh      # Phase 6, not built yet
+  11_configure-automated_vm.sh   # stub -- see PLAN.md design decision #12
+  12_configure-manual_vm.sh
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
 setup_config/
@@ -194,14 +213,17 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 - **51_info_vms.sh** — no vmname arg; loop over all `STORAGE_POOL_DISKS/*.state.yaml`
   and dump full state file detail + Tailscale hostname hint per VM.
 - **11_configure-automated_vm.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
-  resolve an SSH host for the VM (Tailscale hostname, else NAT/DHCP lease
-  via `$VIRSH domifaddr --source lease`), upload and run a small root
-  provisioning script over that SSH connection: install + `tailscale up`
-  (authkey piped over stdin, never argv/env, to avoid `ps` exposure), then
-  `ufw default deny incoming` / `allow in on tailscale0` / `ufw enable` --
-  but only once `tailscale0` is confirmed up. Updates `.tailscale`/`.ufw`
-  in the VM's state file.
-- **12/21/22** — deferred to Phase 6 (see open question above).
+  stub. Same usage line as `12_...` for when it's implemented, but the body
+  is just `require_env` + `die` pointing at `12_configure-manual_vm.sh`. See
+  design decision #12.
+- **12_configure-manual_vm.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
+  same flags, host resolution, and tailscale-before-ufw ordering rule as
+  `11_...`, but interactive: `confirm`s before each step (install Tailscale,
+  `tailscale up`, enable UFW) and runs it over `ssh -tt` (real pty) so output
+  streams live instead of running unattended. Declining a step is not an
+  error -- `.tailscale`/`.ufw` in the state file are set to `up`/`enabled`
+  only for steps actually run and confirmed, `skipped` otherwise.
+- **21/22** — deferred to Phase 6 (see open question above).
 
 ## Build order / phases
 
@@ -214,11 +236,15 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 - **Phase 4 — Diagnostics.** `09_doctor.sh`.
 - **Phase 5 — Cleanup.** Delete `previous_scripts/` once Phase 1/2 has been
   tested end-to-end against a real VM.
-- **Phase 5.5 — Automated configuration.** `11_configure-automated_vm.sh`
-  (Tailscale + UFW, post-boot over SSH).
-- **Phase 6 — Deferred.** `12_configure-manual_vm.sh`, `21/22` snapshot
-  scripts, once the snapshot-pool (internal vs external) question is
-  resolved.
+- **Phase 5.5 — Automated configuration.** `11_configure-automated_vm.sh`.
+  Deferred by request (2026-08-16) -- kept as a stub, see design decision
+  #12. Not on the critical path; revisit whenever a fire-and-forget
+  Tailscale/UFW pass is wanted.
+- **Phase 5.75 — Interactive configuration.** `12_configure-manual_vm.sh`
+  (Tailscale + UFW, post-boot over SSH, confirm-gated and streamed over
+  `ssh -tt`). This is the currently-active configuration path.
+- **Phase 6 — Deferred.** `21/22` snapshot scripts, once the snapshot-pool
+  (internal vs external) question is resolved.
 
 ## Testing steps
 
@@ -302,15 +328,21 @@ Two real bugs found and fixed during this testing pass (not caught by
    the captured string (`<<<`) instead of piping live. Fixed in all three
    locations.
 
-**Not yet tested: `11_configure-automated_vm.sh` end-to-end.** Written and
-syntax-/schema-checked (`bash -n`, and `cloud-init schema` against the
-rendered `user-data.tmpl`), but not run against a real VM -- needs a real
-`TAILSCALE_AUTHKEY` and a running VM to verify: SSH host resolution (both
-the Tailscale-hostname and DHCP-lease-IP paths), the Tailscale install +
-`tailscale up`, and that UFW ends up allowing reconnection over
-`tailscale0` while blocking the NAT interface. The `--skip-ufw` refusal
-path (attempting `--skip-tailscale` together with UFW enabled, when
-`tailscale0` isn't already up) should also be exercised.
+**`11_configure-automated_vm.sh` is a stub (2026-08-16), nothing to test.**
+It previously held the fully-automated Tailscale/UFW provisioning logic
+(SSH host resolution, install + `tailscale up` with authkey piped over
+stdin, then `ufw` lockdown gated on `tailscale0` being confirmed up); that
+logic was deliberately removed at the user's request rather than left
+untested indefinitely, and is preserved in git history for whenever an
+automated pass is wanted again (see design decision #12). Its usage/flags
+still document the intended future interface.
+
+**Not yet tested: `12_configure-manual_vm.sh` end-to-end.** Written and
+syntax-checked (`bash -n`) but not run against a real VM -- same untested
+surface as `11_...` above, plus needs verifying that `ssh -tt` streams
+output live for each step (including the authkey-over-stdin `tailscale up`
+invocation, which forces `-tt` despite piped stdin) and that declining a
+step via `confirm` leaves `.tailscale`/`.ufw` as `skipped` in state.yaml.
 
 ## Status
 
@@ -320,8 +352,10 @@ path (attempting `--skip-tailscale` together with UFW enabled, when
 - [x] Phase 3 — Fleet view (tested against a real host, see above)
 - [x] Phase 4 — Diagnostics (tested against a real host, see above)
 - [x] Phase 5 — Cleanup (previous_scripts/ removed)
-- [x] Phase 5.5 — Automated configuration (`11_configure-automated_vm.sh`;
+- [ ] Phase 5.5 — Automated configuration (`11_configure-automated_vm.sh`;
+      deferred by request, kept as a stub -- see note below)
+- [x] Phase 5.75 — Interactive configuration (`12_configure-manual_vm.sh`;
       not yet tested against a real host, see note below)
-- [ ] Phase 6 — Deferred (`12_configure-manual_vm.sh` + snapshot scripts)
+- [ ] Phase 6 — Deferred (`21/22` snapshot scripts)
 
 (Update the checklist above as phases complete.)

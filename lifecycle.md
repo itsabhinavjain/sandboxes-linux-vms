@@ -65,20 +65,31 @@ correctly permissioned/setgid, and required binaries
 ## Configuration
 
 ### `scripts/11_configure-automated_vm.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`
+Stub, reserved for a future fully-automated (fire-and-forget, no prompts)
+configuration pass. Not implemented for now (deferred by request,
+2026-08-16) -- the file is kept with its usage line intact so the name and
+numbering slot stay reserved; running it just prints a message pointing at
+`12_configure-manual_vm.sh`. See PLAN.md design decision #12 for the
+rationale and how to bring the automated version back later.
+
+### `scripts/12_configure-manual_vm.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`
 Post-boot configuration for an already-running VM, over SSH as `abhinav`
 (reached via its Tailscale hostname if already joined, else its NAT/DHCP
 lease address): joins the VM to the tailnet (`tailscale up`, needs
-`TAILSCALE_AUTHKEY` in `.env` or `--authkey`) and locks UFW down to deny
-all inbound except `tailscale0`. Refuses to enable UFW unless `tailscale0`
-is confirmed up first, to avoid locking out SSH with no fallback besides
+`TAILSCALE_AUTHKEY` in `.env` or `--authkey`) and locks UFW down to deny all
+inbound except `tailscale0`. Refuses to enable UFW unless `tailscale0` is
+confirmed up first, to avoid locking out SSH with no fallback besides
 `virsh console`. Re-runnable/idempotent -- this is how you change
 network/firewall config on an existing VM, since cloud-init only runs once
-(`00_init_vm.sh` disables it after first boot). Records `.tailscale` /
-`.ufw` status in the VM's state file.
-
-### `scripts/12_configure-manual_vm.sh <vmname>` (Phase 6, not yet built)
-Drops into `virsh console` (or prints the SSH command) for manual,
-one-off changes.
+(`00_init_vm.sh` disables it after first boot). Records `.tailscale`/`.ufw`
+status in the VM's state file. Interactive: confirms before each step
+(install Tailscale, `tailscale up`, enable UFW) and runs it over `ssh -tt`
+(real pty) so output streams live instead of running unattended. This is
+currently the only implemented configuration script -- useful for
+configuring a new base image for the first time, or debugging why
+Tailscale/UFW isn't coming up cleanly. Declining a step isn't an error --
+`.tailscale`/`.ufw` in the state file record `up`/`enabled` only for steps
+actually confirmed and run, `skipped` otherwise.
 
 ## Snapshots (Phase 6, not yet built)
 
