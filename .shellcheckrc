@@ -1,0 +1,5 @@
+# See https://www.shellcheck.net/wiki/Ignore
+# SC1091: every script sources lib/common.sh with a dynamic path
+# (`$(dirname "${BASH_SOURCE[0]}")/lib/common.sh`) that shellcheck can't
+# follow; already silenced inline in common.sh itself for its own sources.
+disable=SC1091
