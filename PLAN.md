@@ -1,6 +1,9 @@
 ## ROADMAP 
 ## Things to implement 
 - [ ] user-data customization. Can ask to specify the user instead of hardcoded to `abhinav`. this can also be controlled from an environment variable. 
+- VM configuration 
+  - [ ] the current configuration script is simple. It essentially sets up Tailscale, UFW and Docker only. We can have additional configuration scripts and divide them in simple, advanced, more advanced etc where they can install additional things like Claude code etc. 
+  - [ ] Make working within VM easy : in cloudinit or in configuration files, we migt want to add things like autocompelte, history search, jq, fzf etc everything that essentially makes working with VMs easier. Additionally we can install samba server. We can also install VS code extensions that helps working with and navigating the repo easily - e.g. Markdown files handling liek we do in obsidian etc. 
 
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
