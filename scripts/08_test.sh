@@ -11,6 +11,27 @@
 # left behind on the host. Prints [PASS]/[FAIL] per step; exits 1 if any
 # check failed, 0 if everything passed.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+USAGE=$(cat <<EOF
+NAME
+    08_test.sh -- end-to-end smoke test against a real libvirt host
+
+USAGE
+    scripts/08_test.sh
+
+    No arguments. Runs 09_doctor.sh first (aborts immediately if it fails),
+    then exercises the full single-VM lifecycle -- init (both the flag-driven
+    and -i/--interactive paths of 00_init_vm.sh) -> start -> wait for
+    cloud-init -> status -> reboot -> stop -> fleet views -> destroy --
+    against ephemeral test VMs it creates and always destroys itself.
+    Overridable timeouts: IP_WAIT_TIMEOUT, SSH_WAIT_TIMEOUT,
+    CLOUDINIT_WAIT_TIMEOUT (env vars).
+
+OPTIONS
+    -h, --help  Show this help and exit
+EOF
+)
+show_help_if_requested "$USAGE" "$@"
 require_env
 
 check_bin ssh
@@ -155,10 +176,10 @@ else
     exit 1
 fi
 
-# --- Step 2: init via the automated path ---
-step "Init '$VM_AUTO' (00_init_vm-automated.sh)"
+# --- Step 2: init via the flag-driven (non-interactive) path ---
+step "Init '$VM_AUTO' (00_init_vm.sh)"
 AUTO_DEFINED=0
-if "$SCRIPT_DIR/00_init_vm-automated.sh" "$VM_AUTO" --no-autostart; then
+if "$SCRIPT_DIR/00_init_vm.sh" "$VM_AUTO" --no-autostart; then
     CREATED_VMS+=("$VM_AUTO")
     AUTO_DEFINED=1
     pass "init '$VM_AUTO'"
@@ -204,6 +225,17 @@ if [[ "$AUTO_RUNNING" == "1" ]]; then
     step "Reboot '$VM_AUTO' (03_reboot_vm.sh)"
     if "$SCRIPT_DIR/03_reboot_vm.sh" "$VM_AUTO"; then
         pass "reboot '$VM_AUTO'"
+        # `virsh reboot` doesn't change libvirt's reported domain state (it
+        # stays "running" throughout), so there's nothing to poll for there
+        # -- wait for the guest's SSH/ACPI listener to actually come back up
+        # instead. Without this, the graceful stop in Step 7 can fire while
+        # the guest is still mid-restart and its ACPI listener isn't
+        # accepting shutdown requests yet, forcing an unnecessary --force
+        # fallback there.
+        REBOOT_IP="$(get_vm_ip "$VM_AUTO" "$IP_WAIT_TIMEOUT" || true)"
+        if [[ -n "$REBOOT_IP" ]]; then
+            wait_for_ssh "$REBOOT_IP" "$SSH_WAIT_TIMEOUT" || true
+        fi
     else
         fail "reboot '$VM_AUTO'"
     fi
@@ -221,10 +253,10 @@ if [[ "$AUTO_RUNNING" == "1" ]]; then
     fi
 fi
 
-# --- Step 8: init via the interactive path (blank input = accept every default) ---
-step "Init '$VM_INTERACTIVE' (00_init_vm-interactive.sh, defaults accepted)"
+# --- Step 8: init via the -i/--interactive path (blank input = accept every default) ---
+step "Init '$VM_INTERACTIVE' (00_init_vm.sh -i, defaults accepted)"
 INTERACTIVE_DEFINED=0
-if printf '%s\n\n\n\n\n\n\n' "$VM_INTERACTIVE" | "$SCRIPT_DIR/00_init_vm-interactive.sh"; then
+if printf '\n\n\n\n\n\n' | "$SCRIPT_DIR/00_init_vm.sh" "$VM_INTERACTIVE" -i; then
     CREATED_VMS+=("$VM_INTERACTIVE")
     INTERACTIVE_DEFINED=1
     pass "init '$VM_INTERACTIVE' (interactive)"

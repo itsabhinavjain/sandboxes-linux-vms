@@ -57,31 +57,32 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 - Environment variables are resolved with the following precedence, lowest to highest:
   1. System-level environment variables (see above)
   2. `.env` in the repo root, if present -- overrides #1
-  3. Parameters passed to a script (e.g. `--ram` on `00_init_vm-automated.sh`) -- overrides both #1 and #2
+  3. Parameters passed to a script (e.g. `--ram` on `00_init_vm.sh`), or the value entered at a prompt in `-i`/`--interactive` mode -- overrides both #1 and #2
 - `.env` is gitignored, so host- or checkout-specific overrides never get committed
 - `scripts/lib/common.sh` loads `.env` automatically (every script sources `common.sh`); nothing else to run
 
 ## Scripts 
-- See [lifecycle.md](./lifecycle.md) for the full contract of each script.
-- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm-automated.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
+- See [lifecycle.md](./lifecycle.md) for the full contract of each script. Every script also accepts `-h`/`--help` for its own flag reference.
+- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
+- Scripts that support both a fire-and-forget mode and a prompted/confirmed mode take a single `-i`/`--interactive` flag rather than being split into separate files -- see below.
 
 ### Sandbox Lifecycle Scripts (Summary) 
 ```
 # For a paricular VM 
-- Init (choose one)
-    - `scripts/00_init_vm-automated.sh`    # Flag/env-driven: RAM, CPU, disk size etc. all have defaults, override with flags
-    - `scripts/00_init_vm-interactive.sh`  # Prompts for VM name and shape (RAM, CPU, disk size etc., with defaults), then hands off to the automated script
+- `scripts/00_init_vm.sh <vmname> [-i|--interactive] [options]`
+    # Without -i: flag/env-driven -- RAM, CPU, disk size etc. all have defaults, override with flags
+    # With -i: prompts for any field not passed as a flag, showing the resolved default
 - `scripts/01_start_vm.sh`             # Starts the VM 
 - `scripts/02_stop_vm.sh`
 - `scripts/03_reboot_vm.sh`
 - `scripts/04_destroy_vm.sh`
 - `scripts/05_status_vm.sh`            # Gives the status and info 
-- Configuration (choose one) -- Docker, Tailscale, UFW
-    - `scripts/11_configure_vm-automated.sh`    # Fire-and-forget: runs every step unconditionally, no prompts
-    - `scripts/11_configure_vm-interactive.sh`  # Confirms before each step, streams output live
-- Resize (choose one) -- CPUs, RAM, disk, autostart
-    - `scripts/12_resize_vm-automated.sh`       # Flag-driven: only the fields you pass change, no prompts
-    - `scripts/12_resize_vm-interactive.sh`     # Shows current config, prompts for each field, confirms once
+- `scripts/11_configure_vm.sh <vmname> [-i|--interactive] [options]`  # Docker, Tailscale, UFW
+    # Without -i: fire-and-forget -- runs every step unconditionally, no prompts
+    # With -i: confirms before each step, streams output live
+- `scripts/12_resize_vm.sh <vmname> [-i|--interactive] [options]`     # CPUs, RAM, disk, autostart
+    # Without -i: only the fields you pass change, no prompts
+    # With -i: shows current config, prompts for any field not passed as a flag, confirms once
 - Snapshots (not yet built, see PLAN.md Phase 6)
     - `scripts/21_snapshot_vm.sh`
     - `scripts/22_restore_vm.sh`

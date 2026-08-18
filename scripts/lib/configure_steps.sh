@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Shared step logic for 11_configure_vm-automated.sh and
-# 11_configure_vm-interactive.sh: SSH host resolution, remote step-script
-# upload, and the tailscale/ufw remote actions. Source this after
-# lib/common.sh, don't run it directly.
+# Shared step logic for 11_configure_vm.sh: SSH host resolution, remote
+# step-script upload, and the tailscale/ufw remote actions. Source this
+# after lib/common.sh, don't run it directly.
 #
-# Both scripts reach an already-running VM over SSH as the `abhinav` user
-# (already set up via cloud-init) -- via its Tailscale hostname if already
-# joined, else its NAT/DHCP lease address -- upload the same remote
-# step-script, and run its actions (install-tailscale, bring-up-tailscale,
-# check-tailscale0, configure-ufw, install-docker) either unconditionally
-# (11-automated) or behind a confirm() per step (11-interactive).
+# Reaches an already-running VM over SSH as the `abhinav` user (already set
+# up via cloud-init) -- via its Tailscale hostname if already joined, else
+# its NAT/DHCP lease address -- uploads the remote step-script, and runs its
+# actions (install-tailscale, bring-up-tailscale, check-tailscale0,
+# configure-ufw, install-docker) either unconditionally (default) or behind
+# a confirm() per step (11_configure_vm.sh -i/--interactive).
 
 CONFIGURE_SSH_USER="abhinav"
 CONFIGURE_SSH_OPTS=(

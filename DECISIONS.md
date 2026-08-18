@@ -26,14 +26,14 @@ There are multiple ways of designing the system. In this file I am writing the v
 
 *Gotchas / intentional decisions — don't "fix" these*
 
-- `11_configure_vm-automated.sh` and `11_configure_vm-interactive.sh` share their SSH/remote-step-script logic via `scripts/lib/configure_steps.sh` — they differ only in whether each step runs unconditionally (`-automated`) or behind a `confirm()` prompt (`-interactive`). Don't duplicate that logic back into either script.
-- Cloud-init runs once only — `00_init_vm-automated.sh` disables it after first boot, so template changes only affect newly-created VMs. Post-boot changes (Tailscale, UFW) go through `11_configure_vm-automated.sh`/`11_configure_vm-interactive.sh`.
+- `11_configure_vm.sh`'s SSH/remote-step-script logic lives in `scripts/lib/configure_steps.sh`, shared with nothing else — don't duplicate it into the script itself.
+- Cloud-init runs once only — `00_init_vm.sh` disables it after first boot, so template changes only affect newly-created VMs. Post-boot changes (Tailscale, UFW) go through `11_configure_vm.sh`.
 - UFW is only ever enabled after `tailscale0` is confirmed up, specifically to avoid an SSH lockout with no fallback but `virsh console`.
 - Networking is default libvirt NAT + Tailscale (not Tailscale SSH) for reachability at `<vmname>.<tailnet>.ts.net`. Bridged networking is explicitly deferred. `setup_config/network-config.tmpl` exists but is intentionally unused.
 - `setup_config/user-data.tmpl` hardcodes user `abhinav`, three specific SSH keys, and timezone `Asia/Kolkata` — intentionally not parameterized beyond `${VMNAME}`.
-- SSH-into-VM and `11_configure_vm-interactive.sh` are flagged in `PLAN.md` as unverified end-to-end — treat as "believed correct but unverified." The 2026-08-18 rename/split (`00_init_vm-interactive.sh`, `11_configure_vm-automated.sh` real implementation, shared `lib/configure_steps.sh`, and folding `12_configure_vm-interactive.sh` into `11_configure_vm-interactive.sh` so both configure scripts share number `11`) is likewise unverified against a real host — see `PLAN.md` design decision #13.
+- The 2026-08-18 merge of `00_init_vm.sh`/`11_configure_vm.sh`/`12_resize_vm.sh` (see "Decision: unify automated/interactive scripts" below) was verified end-to-end against a real host the same day (see PLAN.md agent log) -- `08_test.sh` full run, plus manual `12_resize_vm.sh` (RAM/vCPU/disk grow/shrink-refusal/autostart, both flag and `-i` modes) and `11_configure_vm.sh` (real Docker install + idempotency + `-i` step-decline) against a live VM. `11_configure_vm.sh`'s Tailscale/UFW steps remain unverified (no `TAILSCALE_AUTHKEY` configured on this host) -- treat those two steps specifically as "believed correct but unverified."
 - There's no pause/resume script (`04_resume_vm.sh` was deleted 2026-08-18) — nothing in this toolkit calls `virsh suspend`, so it was dead code. Don't add it back without an actual pause use case.
-- `12_resize_vm-automated.sh` and `12_resize_vm-interactive.sh` share their stop/apply/start logic via `scripts/lib/resize_steps.sh`, same split pattern as `configure_steps.sh` — don't duplicate that logic back into either script. RAM/vCPU resizing always goes through `virsh set{maxmem,vcpus} --config` while the VM is stopped, never a live hotplug — `virt-install` defines memory/vcpus as a single current==max value with no separate live ceiling, so there's nothing to hotplug into; a `--config` edit only takes effect on next boot anyway. Disk resize is grow-only (`qemu-img resize`) — shrinking a qcow2 can destroy data past the new boundary and needs an in-guest filesystem shrink first, which this toolkit doesn't attempt. Don't add live/hotplug resize or disk shrink without an actual need for it.
+- `12_resize_vm.sh`'s stop/apply/start logic lives in `scripts/lib/resize_steps.sh`, shared with nothing else — don't duplicate it into the script itself. RAM/vCPU resizing always goes through `virsh set{maxmem,vcpus} --config` while the VM is stopped, never a live hotplug — `virt-install` defines memory/vcpus as a single current==max value with no separate live ceiling, so there's nothing to hotplug into; a `--config` edit only takes effect on next boot anyway. Disk resize is grow-only (`qemu-img resize`) — shrinking a qcow2 can destroy data past the new boundary and needs an in-guest filesystem shrink first, which this toolkit doesn't attempt. Don't add live/hotplug resize or disk shrink without an actual need for it.
 
 *Decision : Storage Pools*
 - Moved from a 4 pool system to a 5 pool system 
@@ -89,7 +89,7 @@ Operational rule : Treat the base cloud images as immutable.
     - UFW 
     - Docker (moved out of cloud-init 2026-08-18 -- cloud-init only runs
       once at first boot, so a VM created before Docker existed, or before a
-      Docker version bump, had no way to pick it up; `11_configure_vm-*`
+      Docker version bump, had no way to pick it up; `11_configure_vm.sh`
       already re-runs safely, so Docker installation lives there now,
       idempotent via `command -v docker`, gated by `--skip-docker`)
 
@@ -97,7 +97,7 @@ Operational rule : Treat the base cloud images as immutable.
 `qemu-guest-agent` needs two things to actually work: the package running in
 the guest (cloud-init, see above) and a virtio-serial channel device on the
 libvirt domain XML (`--channel unix,target_type=virtio,name=org.qemu.guest_agent.0`
-on the `virt-install` call in `00_init_vm-automated.sh`) for the guest agent
+on the `virt-install` call in `00_init_vm.sh`) for the guest agent
 to connect to. The channel is only set at domain-definition time, so this
 only takes effect for VMs created after this change -- existing
 already-defined VMs won't get `virsh domifaddr --source agent` etc. working
@@ -142,6 +142,42 @@ My recommendation: internal. This is a personal sandbox tool, not a backup syste
 - Option 1 : Using the ISO Images (Installer, Packages, Bootloader)
 - Option 2 (Choosing this): Using Cloud Images (`.img` files). Use base images here. 
 
+*Decision : Unify automated/interactive scripts into one script with -i/--interactive, and add --help to every script*
+Originally `00_init_vm.sh`, `11_configure_vm.sh`, and `12_resize_vm.sh` each
+existed as a `-automated`/`-interactive` file pair, sharing their real logic
+via `scripts/lib/{configure,resize}_steps.sh` but duplicating flag-parsing,
+env checks, and the overall script structure between the two files. Merged
+2026-08-18 into a single script per action, taking `-i`/`--interactive`:
+
+- Without `-i`, any field not passed as a flag resolves silently from its
+  default (env/`.env`, or for `12_resize_vm.sh`, the VM's current value) --
+  this is the old `-automated` behavior.
+- With `-i`, any field not passed as a flag is prompted for instead, showing
+  that same resolved default (blank input accepts it), and mutating steps
+  (`11_configure_vm.sh`'s install/join/enable steps, `12_resize_vm.sh`'s
+  apply step) ask for confirmation first -- the old `-interactive` behavior.
+- `<vmname>` is a required positional argument in every script regardless of
+  mode -- `-i` never prompts for the name itself. This is a deliberate
+  behavior change from the old `00_init_vm-interactive.sh`, which did prompt
+  for the name (the only one of the three that did); the other two always
+  took it positionally. Standardizing on "always a required arg" removed
+  that inconsistency.
+- `prompt_default`/`prompt_int`/`prompt_bool` moved from `00_init_vm-interactive.sh`
+  into `scripts/lib/common.sh` so all three scripts can use them.
+- Rationale: the two-file split meant two places that had to be kept in
+  lockstep by hand (whole-script duplication of the argument surface, not
+  just the shared logic already factored into the `lib/` step files), with
+  no compiler/test to catch drift. `04_destroy_vm.sh`'s existing single-script
+  `confirm()`/`FORCE` pattern already proved this doesn't need two files;
+  generalizing it removes the duplication risk and halves the number of
+  script files to keep documented.
+- Also added `-h`/`--help` to every script in `scripts/` (not just the
+  merged three) via a shared `show_help_if_requested` helper in
+  `common.sh`, checked before `require_env` so `--help` works even with a
+  broken/unconfigured environment. Each script's `--help` text is the
+  canonical, single-sourced flag reference -- `lifecycle.md` intentionally
+  no longer restates full flag lists, to avoid a second copy that can drift.
+
 *Decision : Individual state files and not a global registry*
 **state.yaml scope:** per-VM state file living next to that VM's disk in
    the disk pool — NOT a single global registry. `50_list_vms.sh` aggregates by
@@ -153,29 +189,26 @@ My recommendation: internal. This is a personal sandbox tool, not a backup syste
 ## Directory structure (actual)
 
 All scripts live under `scripts/`, run from the repo root
-(e.g. `./scripts/00_init_vm-automated.sh myvm`).
+(e.g. `./scripts/00_init_vm.sh myvm`).
 
 ```
 scripts/
   lib/
     common.sh              # sourced by every numbered script
-    configure_steps.sh     # shared by 11_configure_vm-automated/-interactive.sh -- see design decision #13
-    resize_steps.sh        # shared by 12_resize_vm-automated/-interactive.sh
-  00_init_vm-automated.sh
-  00_init_vm-interactive.sh
+    configure_steps.sh     # shared logic for 11_configure_vm.sh
+    resize_steps.sh        # shared logic for 12_resize_vm.sh
+  00_init_vm.sh             # [-i|--interactive], see "Decision : Unify automated/interactive scripts" above
   01_start_vm.sh
   02_stop_vm.sh
   03_reboot_vm.sh
   04_destroy_vm.sh
   05_status_vm.sh
-  08_test.sh                     # see PLAN.md design decision #14
+  08_test.sh                     # end-to-end smoke test, see lifecycle.md
   09_doctor.sh
   50_list_vms.sh
   51_info_vms.sh
-  11_configure_vm-automated.sh   # see PLAN.md design decision #13
-  11_configure_vm-interactive.sh
-  12_resize_vm-automated.sh
-  12_resize_vm-interactive.sh
+  11_configure_vm.sh             # [-i|--interactive]
+  12_resize_vm.sh                # [-i|--interactive]
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
 setup_config/

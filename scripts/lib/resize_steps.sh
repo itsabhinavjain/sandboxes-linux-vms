@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Shared step logic for 12_resize_vm-automated.sh and
-# 12_resize_vm-interactive.sh: reading the actual current disk size,
-# stopping/starting the VM around a resize, and applying each field
+# Shared step logic for 12_resize_vm.sh: reading the actual current disk
+# size, stopping/starting the VM around a resize, and applying each field
 # (RAM/vCPUs/disk/autostart) to the libvirt domain + state.yaml. Source this
 # after lib/common.sh, don't run it directly.
 #
@@ -23,11 +22,17 @@ RESIZE_STOP_POLL_INTERVAL=3
 
 # resize_disk_current_gb <vmname> -- echoes the qcow2's actual virtual size
 # in whole GB (source of truth for disk size; state.yaml's disk_gb is a
-# record of the last requested size, not re-derived from the file).
+# record of the last requested size, not re-derived from the file). Called
+# unconditionally (even when only RAM/vCPUs/autostart are changing) to print
+# the current-vs-requested row, so this has to work while the VM is running
+# -- -U/--force-share tells qemu-img to read metadata without taking the
+# lock qemu already holds on the attached disk (read-only inspection is safe
+# here; the value doesn't change except through a resize applied while
+# stopped, see resize_apply_disk_grow).
 resize_disk_current_gb() {
     local vmname="$1" path bytes
     path="$(disk_path "$vmname")"
-    bytes="$(qemu-img info --output=json "$path" | yq -p json -r '.["virtual-size"]')"
+    bytes="$(qemu-img info -U --output=json "$path" | yq -p json -r '.["virtual-size"]')"
     echo $(( bytes / 1073741824 ))
 }
 

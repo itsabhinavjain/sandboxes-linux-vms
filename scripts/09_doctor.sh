@@ -8,6 +8,24 @@
 # section (OS, kernel, CPUs, memory, disk space, listening ports) that does
 # not affect pass/fail or the exit code.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+USAGE=$(cat <<EOF
+NAME
+    09_doctor.sh -- host-level diagnostics for the sandbox toolkit
+
+USAGE
+    scripts/09_doctor.sh
+
+    No arguments. Checks KVM support, libvirtd status, required binaries,
+    the five storage pools, and setgid bits on their directories. Prints
+    [PASS]/[FAIL] per check plus informational host details. Exits 1 if any
+    check failed, 0 otherwise.
+
+OPTIONS
+    -h, --help  Show this help and exit
+EOF
+)
+show_help_if_requested "$USAGE" "$@"
 require_env
 
 FAILURES=0

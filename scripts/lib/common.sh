@@ -50,6 +50,54 @@ check_bin() {
     command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
+# show_help_if_requested <usage-text> "$@" -- if -h/--help appears anywhere
+# in the remaining args, print usage-text and exit 0. Call this right after
+# building USAGE, before any required positional arg is parsed, so --help
+# works even with no other arguments (or a broken environment -- call before
+# require_env too).
+show_help_if_requested() {
+    local usage="$1"; shift
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+            printf '%s\n' "$usage"
+            exit 0
+        fi
+    done
+}
+
+# prompt_default <prompt> <default> -- echoes user input, or the default if
+# blank.
+prompt_default() {
+    local prompt="$1" default="$2" reply
+    read -r -p "${prompt} [${default}]: " reply
+    echo "${reply:-$default}"
+}
+
+# prompt_int <prompt> <default> -- like prompt_default, but re-prompts until
+# the value is a positive integer.
+prompt_int() {
+    local prompt="$1" default="$2" value
+    while true; do
+        value="$(prompt_default "$prompt" "$default")"
+        [[ "$value" =~ ^[1-9][0-9]*$ ]] && { echo "$value"; return 0; }
+        echo "Please enter a positive whole number." >&2
+    done
+}
+
+# prompt_bool <prompt> <default: true|false> -- blank input keeps the default.
+prompt_bool() {
+    local prompt="$1" default="$2" reply
+    while true; do
+        read -r -p "${prompt} (true/false) [${default}]: " reply
+        reply="${reply:-$default}"
+        case "$reply" in
+            true|false) echo "$reply"; return 0 ;;
+            *) echo "Please enter 'true' or 'false'." >&2 ;;
+        esac
+    done
+}
+
 require_env() {
     local required=(
         SANDBOX_HOME LIBVIRT_HOME

@@ -5,6 +5,23 @@
 # Tailscale SSH hint (if TAILSCALE_TAILNET is set) for every managed VM.
 # For a single VM's info plus its full `virsh dominfo`, see 05_status_vm.sh.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+USAGE=$(cat <<EOF
+NAME
+    51_info_vms.sh -- full state.yaml + live status + SSH hint for every managed VM
+
+USAGE
+    scripts/51_info_vms.sh
+
+    No arguments. Loops over every STORAGE_POOL_DISKS/*.state.yaml file. For
+    a single VM's detail plus its full 'virsh dominfo', see 05_status_vm.sh
+    instead.
+
+OPTIONS
+    -h, --help  Show this help and exit
+EOF
+)
+show_help_if_requested "$USAGE" "$@"
 require_env
 
 check_bin yq

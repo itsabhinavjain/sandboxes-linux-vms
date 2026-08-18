@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
 # Usage: scripts/04_destroy_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+USAGE=$(cat <<EOF
+NAME
+    04_destroy_vm.sh -- permanently delete a VM
+
+USAGE
+    scripts/04_destroy_vm.sh <vmname> [--force]
+
+    Force-stops the VM if running, undefines the libvirt domain and its
+    storage, and removes the qcow2/seed/state files.
+
+REQUIRED
+    <vmname>    VM name
+
+OPTIONS
+    --force     Skip the "are you sure?" confirmation prompt
+    -h, --help  Show this help and exit
+EOF
+)
+show_help_if_requested "$USAGE" "$@"
 require_env
 
-VMNAME="${1:?Usage: $0 <vmname> [--force]}"
-shift || true
+VMNAME="${1:?Missing <vmname>. Run 'scripts/04_destroy_vm.sh --help' for usage.}"
+shift
+
 FORCE=0
-if [[ "${1:-}" == "--force" ]]; then
-    FORCE=1
-fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force) FORCE=1; shift ;;
+        *) die "Unknown argument: $1 (see --help)" ;;
+    esac
+done
 
 validate_vmname "$VMNAME"
 

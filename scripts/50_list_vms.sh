@@ -5,6 +5,23 @@
 # cross-referencing state.yaml (authoritative resource config) against live
 # libvirt domain status.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+USAGE=$(cat <<EOF
+NAME
+    50_list_vms.sh -- table of all managed VMs (name, live state, autostart, shape)
+
+USAGE
+    scripts/50_list_vms.sh
+
+    No arguments. Scans STORAGE_POOL_DISKS/*.state.yaml and cross-references
+    live status from 'virsh list --all'. For full per-VM detail, see
+    51_info_vms.sh (all VMs) or 05_status_vm.sh (one VM).
+
+OPTIONS
+    -h, --help  Show this help and exit
+EOF
+)
+show_help_if_requested "$USAGE" "$@"
 require_env
 
 check_bin yq

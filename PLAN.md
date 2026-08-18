@@ -2,45 +2,13 @@
 ## Things to implement 
 - [ ] Check the networking using Tailscale. See if you want to do it automatically or have a manual setup 
 - [ ] Check if the networking has been setup as per the design decisions that I have taken 
-- [x] Create a script to edit the configuration of a virtual machine - CPUs, RAM, Disk Space, Autostart - The script should show what the current config is and interactively ask for new config. It should stop and restart vm accordingly as and when needed. 
 - [ ] Check using the vms - how will you ssh into the machines etc 
-- [x] Install qemu guest agent in the virtual machines. (can be done through cloud-init as well)
-
-```
-sudo apt install qemu-guest-agent
-sudo systemctl enable --now qemu-guest-agent
-```
-Useful for :
-```
-virsh domifaddr
-virsh shutdown
-virsh reboot
-```
-
-- [ ] The `info` and the `list` scripts can be a little more detailed where you can give the IP addresses of all the vms etc 
-```
-for vm in $(virsh list --name); do
-    printf "%-30s " "$vm"
-    virsh domifaddr "$vm" --source agent 2>/dev/null |
-        awk '$3 == "ipv4" {print $4}'
-done
-```
-
-```
-# Primary : 
-virsh domifaddr VM --source agent
-
-# DHCP Fallback : 
-virsh net-dhcp-leases default
-```
-
-- [x] Move docker away from cloud-init and instead put it in the configuration scripts - automated and interactive 
 - [ ] user-data customization. Can ask to specify the user instead of hardcoded to `abhinav`. this can also be controlled from an environment variable. 
 
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
 - [ ] Move from individual yaml state files to a global repositry. Think this through later. Dont waste your time on this. 
-- [ ] Script design - Maybe instead of having different scripts for automated and interactive, you can have a same script and send interactive flags. Check the best practices, this might make the code cleaner. 
+- [x] Script design - Maybe instead of having different scripts for automated and interactive, you can have a same script and send interactive flags. Check the best practices, this might make the code cleaner. -- Done 2026-08-18: `00_init_vm.sh`/`11_configure_vm.sh`/`12_resize_vm.sh` merged into single scripts with `-i`/`--interactive`; see AGENT LOGS below and DECISIONS.md.
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
   - [ ] When making into a CLI tool, you can actually make the tool a little more generic and support other types of sandboxes like - microvms, docker containers etc 
@@ -50,6 +18,102 @@ virsh net-dhcp-leases default
 
 ## AGENT LOGS 
 Claude and Other Coding Agents can add their log here :- 
+
+### 2026-08-18 (3) -- Claude (Sonnet 5)
+End-to-end verification of the automated/interactive merge + `--help` work
+(2026-08-18 (2) below) against this real host -- previously only
+syntax-checked. Ran `09_doctor.sh`, a full `08_test.sh` pass, and manual
+coverage of the two scripts `08_test.sh` doesn't exercise
+(`12_resize_vm.sh` entirely; `11_configure_vm.sh`'s non-Tailscale steps).
+Found and fixed two real bugs:
+
+- **Merged scripts weren't executable.** `Write` doesn't preserve/set the
+  execute bit the way `git mv` would have, so `00_init_vm.sh`,
+  `11_configure_vm.sh`, and `12_resize_vm.sh` were created `-rw-rw-r--` --
+  every invocation failed with "Permission denied" (`08_test.sh` caught this
+  immediately on its first run). Fixed with `chmod +x`.
+- **`12_resize_vm.sh` was broken against any running VM, for any field.**
+  `resize_disk_current_gb()` in `scripts/lib/resize_steps.sh` calls
+  `qemu-img info` unconditionally (even for a RAM-only or autostart-only
+  resize, since it's needed for the "Current:"/"Requested:" print rows) --
+  but `qemu-img info` without `-U`/`--force-share` can't get a lock on a
+  qcow2 that's actively attached to a running domain, so it failed with
+  "Failed to get shared 'write' lock", `bytes` ended up as the literal
+  string `"null"`, and the arithmetic on it crashed with `set -u`'s "unbound
+  variable" under that name. Pre-existing bug in `resize_steps.sh`'s
+  function body (untouched by the merge) -- `12_resize_vm-automated.sh`/
+  `-interactive.sh` had the same bug before the merge, it had just never
+  been run against a live host before (see prior "not verified end-to-end"
+  caveats). Fixed by adding `-U` to the `qemu-img info` call -- safe here
+  since it's read-only metadata inspection and virtual-size doesn't change
+  except through `resize_apply_disk_grow`, which only runs while stopped.
+
+Also fixed a minor, unrelated flakiness noticed during the `08_test.sh` run:
+Step 6 (`03_reboot_vm.sh`) issued a reboot and Step 7 immediately attempted
+a graceful stop with no wait in between; `virsh reboot` doesn't change
+libvirt's reported domain state (stays "running" the whole time), so
+there's nothing to poll for there, and the guest's ACPI listener isn't
+always back up yet when the stop request lands -- causing an unnecessary
+`--force` fallback (observed once, see below). Fixed by waiting for the
+guest's SSH to come back up after reboot before Step 7 runs.
+
+Full manual coverage exercised: `00_init_vm.sh` (already-exists guard,
+unknown-flag/invalid-name/missing-vmname rejection, rollback leaves no
+partial artifacts); `12_resize_vm.sh` (RAM+vCPU resize while running
+stops/applies/restarts correctly, no-op detection, disk grow, shrink
+refusal, immediate autostart toggle with no restart, `-i` mode blank-input
+no-op / real-value-with-confirm / decline-aborts-cleanly, unknown flag);
+`11_configure_vm.sh` (missing-authkey die path, not-running die path, real
+Docker install + idempotent re-run, `-i` mode step decline, unknown flag).
+Tailscale/UFW steps in `11_configure_vm.sh` were NOT exercised -- no
+`TAILSCALE_AUTHKEY` configured on this host -- so treat those two steps
+specifically as still "believed correct but unverified."
+
+Test run 1 (before the two fixes): 2/13 `08_test.sh` steps failed
+(permission denied on both init calls). Test run 2 (after `chmod +x`,
+before the resize fix): 12/13 passed (1 unrelated reboot/stop flake, see
+above). Test run 3 (final, all fixes applied): 13/13 passed. All test VMs
+(both from `08_test.sh` and the manually-created one used for resize/
+configure coverage) were destroyed at the end of each run; host left with
+no leftover libvirt domains, disks, or state files, confirmed via
+`virsh list --all` and directory listing after each run.
+
+### 2026-08-18 (2) -- Claude (Sonnet 5)
+Implemented the wishlist item on unifying automated/interactive scripts, plus
+`--help` everywhere:
+- **Merged `-automated`/`-interactive` pairs**: `00_init_vm-automated.sh` +
+  `00_init_vm-interactive.sh` -> `00_init_vm.sh`; same for
+  `11_configure_vm-*` -> `11_configure_vm.sh` and `12_resize_vm-*` ->
+  `12_resize_vm.sh`. Each now takes `-i`/`--interactive`: without it, any
+  field not passed as a flag resolves silently from its default (old
+  `-automated` behavior); with it, unset fields are prompted for instead and
+  mutating steps confirm first (old `-interactive` behavior). `<vmname>` is
+  now a required positional arg in every mode -- `00_init_vm-interactive.sh`
+  used to prompt for it, which was the odd one out vs. the other two
+  scripts; that inconsistency is gone. Promoted `prompt_default`/
+  `prompt_int`/`prompt_bool` into `scripts/lib/common.sh`. See DECISIONS.md
+  ("Decision : Unify automated/interactive scripts...") for full rationale.
+- **`--help` on every script**: added a `show_help_if_requested` helper to
+  `common.sh` (checked before `require_env`, so `--help` works even with a
+  broken/unconfigured environment) and a full NAME/USAGE/REQUIRED/OPTIONS/
+  EXAMPLES block to every script in `scripts/`. `lifecycle.md` trimmed to
+  stop restating full flag lists (that's now `--help`'s job) and instead
+  focuses on cross-script rationale/ordering, to cut the number of places a
+  flag's documentation can drift.
+- Updated `08_test.sh`'s two init calls (previously
+  `00_init_vm-automated.sh` / `00_init_vm-interactive.sh` with blank stdin)
+  to point at `00_init_vm.sh` (flags) and `00_init_vm.sh -i` (blank stdin,
+  now 6 blank lines instead of 7 since vmname is no longer prompted for).
+  Also fixed two pre-existing stale references in `env.sample`
+  (`05_destroy_vm.sh` -> `04_destroy_vm.sh`,
+  `11_configure-automated_vm.sh` -> `11_configure_vm.sh`) noticed while
+  updating it.
+
+Not verified end-to-end against a real host in this session -- syntax-checked
+(`bash -n`) every touched/new script, and exercised `--help` output and the
+promoted prompt helpers directly, but did not run `08_test.sh` or otherwise
+create real VMs (would have real side effects on the host). Same "believed
+correct but unverified" caveat as prior sessions' unverified items.
 
 ### 2026-08-18 -- Claude (Sonnet 5)
 Implemented three wishlist items:
