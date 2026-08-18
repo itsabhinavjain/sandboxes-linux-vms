@@ -172,10 +172,14 @@ configure_check_step() {
 
 # configure_bring_up_tailscale <ssh_host> <vmname> <authkey> -- special-cased
 # vs. configure_run_step because the authkey has to go over stdin, never
-# argv/env, so it never shows up in `ps` on the remote host. -tt still forces
-# pty allocation even though stdin here is a pipe, so tailscale's own status
-# output keeps streaming live.
+# argv/env, so it never shows up in `ps` on the remote host. Deliberately
+# NOT -tt (no pty) here, unlike every other remote step: a pty echoes back
+# whatever it receives on stdin by default, which would print the authkey
+# straight back out to our stdout -- defeating the entire point of piping it
+# instead of passing it as an argument. Output is therefore not
+# live/line-buffered the way -tt steps are, but it still arrives in full
+# once the remote command exits.
 configure_bring_up_tailscale() {
     local ssh_host="$1" vmname="$2" authkey="$3"
-    printf '%s\n' "$authkey" | ssh -tt "${CONFIGURE_SSH_OPTS[@]}" "${CONFIGURE_SSH_USER}@${ssh_host}" "sudo bash $CONFIGURE_REMOTE_SCRIPT '$vmname' bring-up-tailscale"
+    printf '%s\n' "$authkey" | ssh "${CONFIGURE_SSH_OPTS[@]}" "${CONFIGURE_SSH_USER}@${ssh_host}" "sudo bash $CONFIGURE_REMOTE_SCRIPT '$vmname' bring-up-tailscale"
 }

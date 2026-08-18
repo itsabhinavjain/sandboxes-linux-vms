@@ -25,7 +25,9 @@ sudo apt install -y libosinfo-bin
 sudo apt install -y virt-top
 sudo apt install -y virt-manager
 sudo apt install -y genisoimage
-sudo apt install -y cloud-image-utils 
+sudo apt install -y cloud-image-utils
+
+sudo apt install -y jq
 
 # yq -- used to read/write state.yaml. The `yq` package in apt is NOT
 # guaranteed to be mikefarah/yq (Go); install the Go binary explicitly so
@@ -201,3 +203,30 @@ precedence order.
 curl -fsSL -o "$STORAGE_POOL_IMAGES/noble-server-cloudimg-amd64.img" \
   https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 ```
+
+## TAILSCALE 
+1) Reusable + ephemeral auth key → TAILSCALE_AUTHKEY
+Go to https://login.tailscale.com/admin/settings/keys
+1. Click "Generate auth key..."
+2. Description: something like sandboxes-linux-vms fleet
+3. Toggle Reusable on
+4. Toggle Ephemeral on
+5. Under Tags, select tag:dmz-ephemeral
+6. Set expiry (90 days is the max for a reusable key) — this is your rotation reminder
+7. Click Generate key, copy the value immediately (it's shown once, starts tskey-auth-...)
+
+2) OAuth client → TAILSCALE_API_CLIENT_ID / TAILSCALE_API_CLIENT_SECRET
+Go to https://login.tailscale.com/admin/settings/oauth
+1. Click "Generate OAuth client..."
+2. Description: something like sandboxes-linux-vms destroy cleanup
+3. Under Scopes, select only Devices → Core, and make sure it's set to Write (not read-only — deleting a device needs write)
+4. Under Tags, restrict this client to tag:dmz-ephemeral only — this is what guarantees the credential can't touch anything else on your tailnet
+5. Click Generate client, copy both the Client ID and Client Secret immediately (the secret is shown once)
+
+Once you have all three values, you can either paste them here and I'll write them into .env for you, or add them yourself:
+
+TAILSCALE_AUTHKEY="tskey-auth-..."
+TAILSCALE_API_CLIENT_ID="..."
+TAILSCALE_API_CLIENT_SECRET="..."
+
+Your call on which way you'd rather hand them over.

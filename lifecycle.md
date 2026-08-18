@@ -146,6 +146,17 @@ per-domain flag, not "remember and resume the VM's last state."
 ### `scripts/01_start_vm.sh <vmname>`
 Starts a defined (or stopped) VM. Updates state to `status: running`.
 
+Does not re-run any Tailscale step -- a VM's `tailscaled` session lives on
+its own disk and normally just resumes on boot, reachable at the same
+hostname with no action needed. The one gap: since `TAILSCALE_AUTHKEY` is
+typically an ephemeral key, a VM stopped long enough for Tailscale's own
+ephemeral-node cleanup to reap it (02_stop_vm.sh doesn't log it out, so
+this runs on Tailscale's timing, not yours) will come back up *without*
+`tailscale0`/the hostname -- re-run `scripts/11_configure_vm.sh <vmname>
+--skip-docker --skip-ufw` to rejoin in that case. `01_start_vm.sh` prints
+this same reminder itself (only if state.yaml records `.tailscale: up` for
+that VM), so it doesn't have to be remembered separately from this doc.
+
 ### `scripts/02_stop_vm.sh <vmname> [--force]`
 Gracefully shuts the VM down (ACPI). With `--force`, hard-powers it off
 instead. Updates state to `status: stopped`.
@@ -158,6 +169,15 @@ Permanently deletes the VM: force-stops if running, undefines the libvirt
 domain and its storage, removes the qcow2/seed/state files, and prints a
 reminder to run `ssh-keygen -R <vmname>.<tailnet>` on any machine that has
 SSH'd into it. Prompts for confirmation unless `--force` is given.
+
+If `TAILSCALE_API_CLIENT_ID`/`TAILSCALE_API_CLIENT_SECRET` are set (see
+`env.sample`), also deregisters the VM's device from the tailnet via the
+Tailscale API (best-effort -- logs and continues on any failure, never
+blocks the local teardown). This is what makes a destroy-then-recreate
+cycle with the same VM name reliably reclaim the same hostname, instead of
+racing Tailscale's own ephemeral-node cleanup, which runs on its own
+schedule and isn't guaranteed to have freed the name yet. See DECISIONS.md
+("Decision : Tailscale device cleanup on destroy").
 
 ### `scripts/05_status_vm.sh <vmname>`
 Shows `virsh dominfo` merged with the state file contents, plus the

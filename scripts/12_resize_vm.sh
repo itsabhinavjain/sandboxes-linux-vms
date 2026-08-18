@@ -186,3 +186,12 @@ fi
 [[ "$AUTOSTART_CHANGED" == "1" ]] && state_set "$VMNAME" .autostart "$NEW_AUTOSTART"
 
 log "Resize complete for '$VMNAME'."
+
+if [[ "$DISK_CHANGED" == "1" ]]; then
+    log ""
+    log "Disk grew to ${NEW_DISK}G, but that only resized the block device -- the guest's partition/filesystem is still the old size. Get into the VM and grow it:"
+    if [[ -n "${TAILSCALE_TAILNET:-}" ]]; then
+        log "    ssh ${VMNAME}.${TAILSCALE_TAILNET}"
+    fi
+    log "    sudo growpart /dev/vda 1 && sudo resize2fs /dev/vda1"
+fi

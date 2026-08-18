@@ -18,6 +18,122 @@
 ## AGENT LOGS 
 Claude and Other Coding Agents can add their log here :- 
 
+### 2026-08-18 (6) -- Claude (Sonnet 5)
+End-to-end verification of the Tailscale auth-key setup and the
+destroy-time API cleanup from log entry (5) below, once the user generated
+real credentials (a reusable+ephemeral key tagged `tag:dmz-ephemeral`, and
+an OAuth client scoped to Devices Core write + that same tag) and added
+them to `.env`. Ran a real lifecycle against this host and the user's real
+tailnet (`dog-tortoise.ts.net`): `09_doctor_host.sh` -> create+boot a test
+VM (`ts-func-test`) -> `11_configure_vm.sh --skip-docker` (joins Tailscale,
+enables UFW) -> `06_doctor_vm.sh` (all checks passed, including
+guest-side Tailscale/UFW) -> `04_destroy_vm.sh --force` -> recreated a
+second VM with the identical name -> configured it again -> destroyed it
+again. Every "VM deleted"/"tailnet device removed" claim was cross-checked
+independently (via `tailscale status` on the host and a fresh Tailscale API
+device listing), not just trusted from the scripts' own log output.
+
+**Confirmed the core fix works**: the recreated VM registered as exactly
+`ts-func-test` with no `-1` suffix, i.e. the OAuth-based device deletion in
+`04_destroy_vm.sh` (added in log entry (5)) genuinely frees the hostname
+before a same-named VM is recreated -- the scenario this was all built for.
+
+**Found and fixed a real security bug while testing**, unrelated to the
+work in (5): the very first `11_configure_vm.sh` run printed the actual
+`TAILSCALE_AUTHKEY` value in plaintext to stdout (visible in this session's
+tool output). Root cause: `configure_bring_up_tailscale()` in
+`scripts/lib/configure_steps.sh` correctly pipes the authkey over stdin
+(to keep it out of `ps` on the remote host) but forced `ssh -tt` (pty
+allocation) on that same call for live-output streaming -- and a pty
+echoes back whatever it receives on stdin, undoing the whole point of
+piping it. Fixed by dropping `-tt` from that one call site only (every
+other remote step in the file still uses it, since they don't pipe
+secrets). Re-verified by re-running configuration against a live VM and
+grepping the full output for the key pattern -- zero matches on the fixed
+version (the first re-verification attempt was a false positive: the rerun
+had actually failed to reach the VM at all, for an unrelated reason below,
+so it never reached the vulnerable code path -- caught this by checking the
+run's actual exit status/log content instead of trusting a piped
+`grep -c` exit code). **Told the user to revoke/regenerate the exposed
+key** at https://login.tailscale.com/admin/settings/keys since it's now in
+this transcript; a reusable key revocation doesn't disconnect devices
+already joined with it, so this doesn't require re-touching the test VM.
+
+Also hit, incidentally: `TAILSCALE_TAILNET` was unset in `.env` (just
+`TAILSCALE_AUTHKEY`/`TAILSCALE_API_CLIENT_ID`/`_SECRET` had been added), and
+once UFW came up on the test VM its DHCP/NAT IP stopped being reachable (by
+design) with no `TAILSCALE_TAILNET` to build the Tailscale-hostname SSH
+fallback -- so the very next `11_configure_vm.sh`/`06_doctor_vm.sh` call
+would have been unable to reach the guest at all. Set
+`TAILSCALE_TAILNET="dog-tortoise.ts.net"` in `.env` (found via `tailscale
+status --json` on this host) and cleaned up a stale duplicate
+`TAILSCALE_TAILNET=""` block in `.env` left over from an earlier
+`env.sample` copy (referenced the old `05_destroy_vm.sh` script name, from
+before that script was renumbered). Not a code bug -- `env.sample` already
+documents this var -- but worth flagging since its absence surfaces as a
+generic "can't reach VM" failure with no obvious link to UFW.
+
+Left the test host clean: no VMs (`50_list_vms.sh` confirms empty), no
+leftover tailnet devices, `ssh-keygen -R`'d the throwaway IPs this session
+touched directly (the scripts' own SSH calls already use
+`UserKnownHostsFile=/dev/null`, so nothing from them persisted).
+DECISIONS.md's "Decision : Tailscale device cleanup on destroy" entry
+updated in place to reflect verified status instead of "believed correct
+but unverified."
+
+### 2026-08-18 (5) -- Claude (Sonnet 5)
+Discussed Tailscale auth-key strategy for these sandbox VMs against the
+user's existing tag taxonomy (`dmz-persistent`/`dmz-ephemeral`/
+`machine-ephemeral`) and ACL grants -- recommended a single reusable +
+ephemeral key tagged `tag:dmz-ephemeral` (matches these VMs' actual shape:
+throwaway, outbound-internet-only, reachable by the user's own member
+devices via the existing `autogroup:member -> *` grant regardless of tag).
+No code needed for that part -- `configure_steps.sh`'s `tailscale up
+--authkey=... --hostname=$VMNAME` already just inherits whatever
+tag/ephemeral properties the key itself carries.
+
+Then walked through two concrete scenarios (destroy -> recreate same name;
+stop -> restart after a gap) and found neither guarantees reclaiming the
+same tailnet hostname, because none of `01_start_vm.sh`/`02_stop_vm.sh`/
+`04_destroy_vm.sh` ever talk to Tailscale -- an ephemeral node only gets
+cleaned up on Tailscale's own schedule, not this toolkit's, so a fast
+destroy+recreate can collide with a still-present stale device (Tailscale
+auto-suffixes the new one, e.g. `myvm-1`) and a long stop can outlast the
+ephemeral-cleanup window (VM comes back with no working `tailscale0`).
+
+Fixed the destroy/recreate gap: new `scripts/lib/tailscale_api.sh`
+(OAuth-client-based -- exchanges `TAILSCALE_API_CLIENT_ID`/`_SECRET` for a
+short-lived bearer token, looks up the tailnet device by hostname, deletes
+it), wired into `04_destroy_vm.sh` as a best-effort step after local
+teardown. Chose OAuth-client over a personal API token (can be scoped to
+both a permission -- Devices Core write-only -- and a *tag*, e.g. only
+`tag:dmz-ephemeral`, so the credential can't touch anything else on the
+tailnet) and over SSH-based `tailscale logout` (works even if the guest is
+already unreachable by the time destroy runs, since it talks to Tailscale's
+control plane directly from the host). Both env vars are optional --
+missing them just logs a skip note rather than failing the destroy. Added
+`jq` as an optional dependency (present on this host already) -- noted in
+`SETUP.md` and as a non-fatal check in `09_doctor_host.sh`, mirroring the
+existing `kvm-ok`-optional pattern. Documented the full rationale in
+`DECISIONS.md` ("Decision : Tailscale device cleanup on destroy") and
+updated `lifecycle.md`'s `04_destroy_vm.sh`/`01_start_vm.sh` sections.
+
+Deliberately left the stop/long-restart gap as a documented caveat rather
+than a code change (`lifecycle.md`, `01_start_vm.sh` section) -- fixing it
+the same way (delete-on-stop) would break the common fast stop/restart case
+where the same node/session should just resume for free; the fix there is
+manual (`11_configure_vm.sh <vmname> --skip-docker --skip-ufw` to rejoin)
+if it's ever actually hit.
+
+Verified: `bash -n` on all touched/new files, `shellcheck` clean on
+`scripts/lib/tailscale_api.sh` (pre-existing warnings elsewhere untouched),
+and the two `jq` filters used in it tested standalone against sample
+JSON (token extraction, device-id-by-hostname lookup) -- both produced the
+expected output. **Not** exercised against the real Tailscale API in this
+session (no OAuth client configured on this host yet) -- treat
+`tailscale_api.sh` as "believed correct but unverified end-to-end" until
+run against a real tailnet with real credentials.
+
 ### 2026-08-18 (4) -- Claude (Sonnet 5)
 Renamed `09_doctor.sh` -> `09_doctor_host.sh` (it only ever checked the
 host, not any VM -- the name was ambiguous next to the new script below) and

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: scripts/04_destroy_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/tailscale_api.sh"
 
 USAGE=$(cat <<EOF
 NAME
@@ -10,7 +11,11 @@ USAGE
     scripts/04_destroy_vm.sh <vmname> [--force]
 
     Force-stops the VM if running, undefines the libvirt domain and its
-    storage, and removes the qcow2/seed/state files.
+    storage, and removes the qcow2/seed/state files. If
+    TAILSCALE_API_CLIENT_ID/TAILSCALE_API_CLIENT_SECRET are set, also
+    deregisters the VM's device from the tailnet (best-effort -- see
+    env.sample) so a future VM with the same name reliably reclaims the
+    same hostname instead of colliding with a stale device record.
 
 REQUIRED
     <vmname>    VM name
@@ -70,6 +75,9 @@ fi
 [[ -f "$STATE_PATH" ]] && { log "Removing state file...";         rm -f "$STATE_PATH"; }
 
 log "VM '$VMNAME' fully deleted."
+
+tailscale_deregister_vm "$VMNAME"
+
 if [[ -n "${TAILSCALE_TAILNET:-}" ]]; then
     log "NOTE: also run this on any machine that has SSH'd into it:"
     log "    ssh-keygen -R ${VMNAME}.${TAILSCALE_TAILNET}"

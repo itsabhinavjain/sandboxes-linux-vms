@@ -56,6 +56,12 @@ else
     log "kvm-ok not installed -- skipping (optional check)"
 fi
 
+if command -v jq >/dev/null 2>&1; then
+    pass "jq present (needed only for 04_destroy_vm.sh's optional Tailscale device cleanup)"
+else
+    log "jq not installed -- skipping (optional check; only needed if TAILSCALE_API_CLIENT_ID/_SECRET are set)"
+fi
+
 # 2. libvirtd active (or socket-activatable -- libvirtd.service is commonly
 # socket-activated, so it can be legitimately inactive until something
 # connects to it; treat the socket unit as equally acceptable)

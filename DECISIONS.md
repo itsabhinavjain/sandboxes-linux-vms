@@ -138,6 +138,94 @@ Trade-offs:
 
 My recommendation: internal. This is a personal sandbox tool, not a backup system — the actual need is "try something risky, revert if it goes wrong," and internal snapshots handle that with far less code and no changes to the disk-path assumptions baked into every script so far. STORAGE_POOL_SNAPSHOTS stays defined but unused for now; I'd note that in the docs rather than rip out the pool, in case external snapshots become worth it later. Happy to build it out this way when we get to Phase 6 — say the word.
 
+*Decision : Tailscale device cleanup on destroy (OAuth API, not SSH-based logout)*
+`TAILSCALE_AUTHKEY` (used by `11_configure_vm.sh`) is a reusable +
+ephemeral, tagged (`tag:dmz-ephemeral`) key. Ephemeral means Tailscale
+itself will eventually remove a device once it's been offline a while --
+but that cleanup runs on Tailscale's own schedule, not this toolkit's.
+Concretely this created two gaps:
+- **destroy -> recreate with the same VM name**: `04_destroy_vm.sh` force-
+  powers the VM off and wipes its disk/state, but never talked to
+  Tailscale -- the old device record for that hostname could still be
+  sitting there when a same-named VM is recreated, and Tailscale's default
+  hostname-collision handling is to auto-suffix the new device's DNS name
+  (`myvm-1`) rather than reuse it.
+- **stop -> restart after a long gap**: `02_stop_vm.sh` doesn't log the
+  guest out either, so a VM stopped past Tailscale's ephemeral-cleanup
+  window comes back up with a dead `tailscaled` session and no automatic
+  way to reconnect (nothing re-runs `tailscale up` on boot).
+
+Fixed the first gap: `04_destroy_vm.sh` now calls
+`scripts/lib/tailscale_api.sh`'s `tailscale_deregister_vm` after local
+teardown, which looks up the device by hostname and deletes it via the
+Tailscale API, so the hostname is deterministically free before any future
+VM reuses the name.
+
+Chose an **OAuth client** (`TAILSCALE_API_CLIENT_ID`/`_SECRET`, exchanged
+for a short-lived bearer token) over a personal API access token or an
+SSH-based `tailscale logout`:
+- An OAuth client can be scoped both by permission (Devices Core -> Write
+  only) and by **tag** (restricted to `tag:dmz-ephemeral` etc. in the
+  Tailscale admin UI when creating it) -- so this credential can only ever
+  delete devices carrying that tag, nothing else on the tailnet. A personal
+  access token inherits the creating user's full account permissions
+  instead, and also expires at 90 days needing manual renewal.
+- SSH-based logout (SSH in, run `sudo tailscale logout`, then destroy)
+  only works if the guest is still reachable at that exact moment, and by
+  the time `04_destroy_vm.sh` runs `virsh destroy` the VM may already be
+  unreachable or hung -- the API approach works regardless of guest state,
+  since it talks to Tailscale's control plane directly from the host, not
+  through the guest.
+
+Deliberately did **not** fix the second gap (stop -> long restart) the same
+way -- deleting the device on every stop would break the common case (a
+short stop/restart resuming the exact same node/session with zero
+Tailscale calls), and adding a Tailscale rejoin step to `01_start_vm.sh`
+changes that script's contract for a genuinely rare edge case. Documented
+instead in `lifecycle.md`'s `01_start_vm.sh` section: if it happens,
+re-running `11_configure_vm.sh <vmname> --skip-docker --skip-ufw` is a
+one-line fix (`tailscale up --authkey=...` is idempotent-safe to re-run
+regardless of current session state).
+
+Both `TAILSCALE_API_CLIENT_ID`/`_SECRET` are optional -- if unset,
+`tailscale_deregister_vm` logs a note and returns 0 rather than failing the
+destroy, so local teardown is never blocked on Tailscale API availability.
+
+**2026-08-18 update -- verified end-to-end against this user's real
+tailnet**, once real credentials were generated (see PLAN.md agent log for
+the full run). Confirmed both the OAuth token exchange/device-lookup/delete
+path and the actual scenario this was built for: destroyed a VM, recreated
+one with the identical name, and it reclaimed the exact same hostname (no
+`-1` suffix) -- verified independently via both `tailscale status` and a
+fresh API device listing after each destroy, not just by trusting the
+script's own log line.
+
+This same test run also caught and fixed a real, unrelated security bug in
+`scripts/lib/configure_steps.sh`'s `configure_bring_up_tailscale`: it piped
+`TAILSCALE_AUTHKEY` over stdin specifically to keep it off the remote `ps`
+output (correct), but forced `ssh -tt` (a pty) on top of that pipe for live
+output streaming -- and a pty echoes back whatever it receives on stdin by
+default, so the key was being printed straight back out to our own stdout
+on every `tailscale up` run. First observed live during this test (the key
+appeared in this session's tool output/terminal scrollback), so the key
+that was exposed should be treated as compromised -- if you're reading this
+and haven't already, revoke/regenerate it at
+https://login.tailscale.com/admin/settings/keys (revoking a reusable key
+doesn't disconnect devices already registered with it, so this is safe to
+do without breaking anything already joined). Fixed by dropping `-tt` from
+that one call site only (every other remote step still uses it) -- verified
+the fix by re-running configuration against a live VM and confirming the
+key no longer appears in output.
+
+Also surfaced, incidentally, that `TAILSCALE_TAILNET` genuinely needs to be
+set for `11_configure_vm.sh` reruns and `06_doctor_vm.sh` to keep working
+*after* UFW is enabled on a VM -- once UFW is active, the guest's DHCP/NAT
+IP stops being reachable (by design), and `configure_resolve_ssh_host`'s
+only other fallback is the Tailscale hostname, which requires
+`TAILSCALE_TAILNET` to construct. Not a bug -- `env.sample` already
+documents this var -- but worth calling out since its absence looks like a
+generic "can't reach VM" failure with no obvious link to UFW.
+
 *Decision : Use Linux Cloud Images instead of provisioning it from ISO images*
 - Option 1 : Using the ISO Images (Installer, Packages, Bootloader)
 - Option 2 (Choosing this): Using Cloud Images (`.img` files). Use base images here. 
