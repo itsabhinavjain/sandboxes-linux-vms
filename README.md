@@ -76,9 +76,12 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 - `scripts/03_reboot_vm.sh`
 - `scripts/04_destroy_vm.sh`
 - `scripts/05_status_vm.sh`            # Gives the status and info 
-- Configuration (choose one)
+- Configuration (choose one) -- Docker, Tailscale, UFW
     - `scripts/11_configure_vm-automated.sh`    # Fire-and-forget: runs every step unconditionally, no prompts
     - `scripts/11_configure_vm-interactive.sh`  # Confirms before each step, streams output live
+- Resize (choose one) -- CPUs, RAM, disk, autostart
+    - `scripts/12_resize_vm-automated.sh`       # Flag-driven: only the fields you pass change, no prompts
+    - `scripts/12_resize_vm-interactive.sh`     # Shows current config, prompts for each field, confirms once
 - Snapshots (not yet built, see PLAN.md Phase 6)
     - `scripts/21_snapshot_vm.sh`
     - `scripts/22_restore_vm.sh`

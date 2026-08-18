@@ -109,9 +109,10 @@ wait_for_ssh() {
 
 # wait_for_cloudinit <vmname> -- waits for a DHCP lease, then SSH, then runs
 # `cloud-init status --wait` on the guest so this actually blocks until
-# provisioning (package installs, docker, etc. in user-data.tmpl) is done
-# instead of racing it, and prints the cloud-init status plus a log tail so
-# a failed/degraded run is visible. Retries once if the SSH connection drops
+# provisioning (package installs, qemu-guest-agent enable, etc. in
+# user-data.tmpl) is done instead of racing it, and prints the cloud-init
+# status plus a log tail so a failed/degraded run is visible. Retries once
+# if the SSH connection drops
 # mid-wait, since user-data.tmpl's `package_reboot_if_required: true` can
 # reboot the guest partway through provisioning. Returns non-zero if the
 # lease/SSH/cloud-init wait didn't succeed.

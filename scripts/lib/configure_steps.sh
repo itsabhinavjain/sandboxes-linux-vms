@@ -8,8 +8,8 @@
 # (already set up via cloud-init) -- via its Tailscale hostname if already
 # joined, else its NAT/DHCP lease address -- upload the same remote
 # step-script, and run its actions (install-tailscale, bring-up-tailscale,
-# check-tailscale0, configure-ufw) either unconditionally (11) or behind a
-# confirm() per step (12).
+# check-tailscale0, configure-ufw, install-docker) either unconditionally
+# (11-automated) or behind a confirm() per step (11-interactive).
 
 CONFIGURE_SSH_USER="abhinav"
 CONFIGURE_SSH_OPTS=(
@@ -99,6 +99,23 @@ install_tailscale() {
     apt-get install -y -qq tailscale
 }
 
+install_docker() {
+    if command -v docker >/dev/null 2>&1; then
+        log "Docker already installed."
+        return 0
+    fi
+    log "Installing Docker..."
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    . /etc/os-release
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    usermod -aG docker abhinav
+}
+
 bring_up_tailscale() {
     read -r TS_AUTHKEY
     log "Bringing up Tailscale..."
@@ -128,6 +145,7 @@ case "$ACTION" in
     bring-up-tailscale) bring_up_tailscale ;;
     check-tailscale0)   check_tailscale0 ;;
     configure-ufw)      configure_ufw ;;
+    install-docker)     install_docker ;;
     *) echo "Unknown action: $ACTION" >&2; exit 1 ;;
 esac
 REMOTE_EOF

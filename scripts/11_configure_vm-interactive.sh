@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Usage: scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]
+# Usage: scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]
 #
 # Interactive counterpart to 11_configure_vm-automated.sh: same end state
-# (VM joined to the tailnet, UFW locked down to tailscale0-only) but walked
-# through step by step over SSH instead of run unattended -- confirms before
-# each step and runs it with an allocated pty so output (apt, `tailscale up`,
-# `ufw status verbose`) streams live. Use the -automated variant for a
-# fire-and-forget run; use this one to watch/approve each step, e.g. first
-# time configuring a new base image, or debugging why tailscale/ufw isn't
-# coming up cleanly.
+# (VM joined to the tailnet, UFW locked down to tailscale0-only, Docker
+# installed) but walked through step by step over SSH instead of run
+# unattended -- confirms before each step and runs it with an allocated pty
+# so output (apt, `tailscale up`, `ufw status verbose`) streams live. Use
+# the -automated variant for a fire-and-forget run; use this one to
+# watch/approve each step, e.g. first time configuring a new base image, or
+# debugging why Docker/Tailscale/UFW isn't coming up cleanly.
 #
 # Still enforces the same ordering safety as the -automated variant: refuses
 # to enable UFW unless tailscale0 is confirmed up first -- enabling a
@@ -25,17 +25,19 @@ require_env
 
 check_bin ssh
 
-VMNAME="${1:?Usage: scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]}"
+VMNAME="${1:?Usage: scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]}"
 shift
 
 DO_TAILSCALE=1
 DO_UFW=1
+DO_DOCKER=1
 AUTHKEY="${TAILSCALE_AUTHKEY:-}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-tailscale) DO_TAILSCALE=0; shift ;;
         --skip-ufw)       DO_UFW=0; shift ;;
+        --skip-docker)    DO_DOCKER=0; shift ;;
         --authkey)        AUTHKEY="$2"; shift 2 ;;
         *) die "Unknown argument: $1" ;;
     esac
@@ -60,6 +62,17 @@ trap 'configure_cleanup_remote "$SSH_HOST"' EXIT
 
 log "Uploading configuration script..."
 configure_upload_remote_script "$SSH_HOST"
+
+DOCKER_STATE="skipped"
+
+if [[ "$DO_DOCKER" == "1" ]]; then
+    if confirm "Install/verify Docker on '$VMNAME'?"; then
+        configure_run_step "$SSH_HOST" "$VMNAME" install-docker
+        DOCKER_STATE="installed"
+    else
+        log "Skipped Docker install step."
+    fi
+fi
 
 TAILSCALE_STATE="skipped"
 
@@ -116,6 +129,7 @@ else
 fi
 
 state_set "$VMNAME" .ufw "$UFW_STATE"
+state_set "$VMNAME" .docker "$DOCKER_STATE"
 
 log "Configuration complete for '$VMNAME'."
 if [[ "$TAILSCALE_STATE" == "up" && -n "${TAILSCALE_TAILNET:-}" ]]; then

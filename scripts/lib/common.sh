@@ -153,6 +153,16 @@ state_set() {
     yq -i ".updated_at = \"$(now_utc)\"" "$path"
 }
 
+# state_set_raw <vmname> <yq-path> <raw-value> -- like state_set, but writes
+# the value unquoted (e.g. a number), matching how state_init writes
+# ram_mb/vcpus/disk_gb. Also bumps updated_at.
+state_set_raw() {
+    local vmname="$1" key="$2" value="$3"
+    local path; path="$(state_path "$vmname")"
+    yq -i "${key} = ${value}" "$path"
+    yq -i ".updated_at = \"$(now_utc)\"" "$path"
+}
+
 state_remove() {
     local vmname="$1"
     rm -f "$(state_path "$vmname")"

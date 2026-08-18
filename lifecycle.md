@@ -29,7 +29,13 @@ Defines a new VM without starting it. Validates the name isn't already in
 use, creates a qcow2 overlay disk (backed by the base cloud image) in
 `STORAGE_POOL_DISKS`, renders the cloud-init templates and builds the seed
 ISO in `STORAGE_POOL_CLOUD_INIT_ISOS`, then defines the libvirt domain
-(`virsh define`, no boot). Writes
+(`virsh define`, no boot). The domain is defined with a virtio-serial
+channel (`org.qemu.guest_agent.0`) for `qemu-guest-agent`, which cloud-init
+installs and enables in the guest -- together these make
+`virsh domifaddr --source agent`, `virsh shutdown`, `virsh reboot` etc. work
+against the guest agent instead of only the NAT/DHCP lease file. This
+channel is only set at definition time, so it only applies to VMs created
+by this script going forward, not VMs defined before this change. Writes
 `<vmname>.state.yaml` with `status: defined`. Rolls back any partially
 created files if a step fails.
 
@@ -91,8 +97,9 @@ ready, the script polls the default NAT network's dnsmasq lease file
 (`virsh domifaddr --source lease`) for an IP, waits for SSH, then runs
 `cloud-init status --wait --long` on the guest over SSH so the test actually
 blocks until provisioning (the `packages`/`runcmd` block in
-`setup_config/user-data.tmpl` -- apt upgrade, Docker install, etc.) is done,
-instead of racing it. Prints the cloud-init status output plus a
+`setup_config/user-data.tmpl` -- apt upgrade, qemu-guest-agent enable,
+etc.) is done, instead of racing it. Prints the cloud-init status output
+plus a
 40-line tail of `/var/log/cloud-init-output.log` either way, so a
 failed/degraded run is visible in the test output. Retries the wait once if
 the SSH connection drops mid-provisioning (`package_reboot_if_required:
@@ -110,35 +117,76 @@ out of scope for a local smoke test).
 ## Configuration
 
 Both configuration scripts share the same end state (VM joined to the
-tailnet, UFW locked down to `tailscale0`-only), the same flags, and the same
-SSH/remote-step-script machinery, factored into
+tailnet, UFW locked down to `tailscale0`-only, Docker installed), the same
+flags, and the same SSH/remote-step-script machinery, factored into
 `scripts/lib/configure_steps.sh`. They differ only in how each step is
 triggered: the `-automated` variant runs every step unconditionally
 (fire-and-forget), while the `-interactive` variant confirms before each
 step and streams its output live. Both refuse
 to enable UFW unless `tailscale0` is confirmed up first, to avoid locking
 out SSH with no fallback besides `virsh console`. Both are
-re-runnable/idempotent -- this is how you change network/firewall config on
-an existing VM, since cloud-init only runs once (`00_init_vm-automated.sh`
-disables it after first boot) -- and both record `.tailscale`/`.ufw` status
-in the VM's state file.
+re-runnable/idempotent -- this is how you change network/firewall config
+and install/update Docker on an existing VM, since cloud-init only runs
+once (`00_init_vm-automated.sh` disables it after first boot) -- and both
+record `.tailscale`/`.ufw`/`.docker` status in the VM's state file. Docker
+installation lives here rather than in cloud-init specifically so it can be
+(re-)run against already-running VMs, not just at first boot -- see
+`DECISIONS.md`.
 
-### `scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`
-Fire-and-forget: joins the VM to the tailnet (`tailscale up`, needs
-`TAILSCALE_AUTHKEY` in `.env` or `--authkey`) and enables UFW, running every
-step unconditionally with no prompts. Idempotency comes from the remote
-steps themselves (e.g. `install_tailscale` checks `command -v tailscale`
-first; the `ufw allow` rule is safe to repeat). Useful for chaining after
-`01_start_vm.sh` in a script, or reconfiguring a VM without babysitting it.
+### `scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]`
+Fire-and-forget: installs Docker, joins the VM to the tailnet (`tailscale
+up`, needs `TAILSCALE_AUTHKEY` in `.env` or `--authkey`), and enables UFW,
+running every step unconditionally with no prompts. Idempotency comes from
+the remote steps themselves (e.g. `install_tailscale`/`install_docker`
+check `command -v tailscale`/`command -v docker` first; the `ufw allow`
+rule is safe to repeat). Useful for chaining after `01_start_vm.sh` in a
+script, or reconfiguring a VM without babysitting it.
 
-### `scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`
+### `scripts/11_configure_vm-interactive.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]`
 Interactive counterpart to `11_configure_vm-automated.sh`: confirms before each step (install
-Tailscale, `tailscale up`, enable UFW) and runs it over `ssh -tt` (real pty)
+Docker, install Tailscale, `tailscale up`, enable UFW) and runs it over `ssh -tt` (real pty)
 so output streams live instead of running unattended. Useful for configuring
-a new base image for the first time, or debugging why Tailscale/UFW isn't
-coming up cleanly. Declining a step isn't an error -- `.tailscale`/`.ufw` in
-the state file record `up`/`enabled` only for steps actually confirmed and
-run, `skipped` otherwise.
+a new base image for the first time, or debugging why Docker/Tailscale/UFW
+isn't coming up cleanly. Declining a step isn't an error --
+`.tailscale`/`.ufw`/`.docker` in the state file record
+`up`/`enabled`/`installed` only for steps actually confirmed and run,
+`skipped` otherwise.
+
+## Resize
+
+Both resize scripts edit an existing VM's shape (RAM, vCPUs, disk, autostart)
+and share their apply logic via `scripts/lib/resize_steps.sh`. RAM/vCPU
+changes go through `virsh setmaxmem`/`setvcpus --config` (persistent config
+only -- `virt-install` originally defines memory/vcpus as a single
+current==max value, so there's no live ceiling to hotplug into; a change
+takes effect the next time the domain starts). Disk resize is grow-only via
+`qemu-img resize` -- shrinking is refused, since it can destroy data past
+the new boundary and would need an in-guest filesystem shrink first, which
+this toolkit doesn't attempt. Because of this, RAM/vCPU/disk changes always
+require the VM to be stopped: if any of those actually change and the VM is
+currently running, the script stops it (graceful ACPI shutdown, blocks
+until it's actually off -- unlike `02_stop_vm.sh`, which is fire-and-forget,
+this has to be certain the disk isn't in use before resizing it), applies
+the changes, and starts it back up; if the VM is already stopped, changes
+are applied and it's left stopped. Autostart changes apply immediately via
+`virsh autostart`/`--disable` regardless of run state, no stop/restart
+needed for that alone. Growing the disk only resizes the block device --
+the guest's partition/filesystem still needs growing separately (e.g.
+`growpart` + `resize2fs`).
+
+### `scripts/12_resize_vm-automated.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--autostart|--no-autostart] [--force]`
+Fire-and-forget: unlike `00_init_vm-automated.sh`, every flag is optional
+and only the fields actually passed are changed -- omitted flags mean
+"leave as-is". Prints current vs. requested config before doing anything,
+and exits cleanly with no changes if nothing differs. `--force`, if a stop
+is needed, hard-powers the VM off (`virsh destroy`) instead of waiting for
+a graceful shutdown -- same meaning as `02_stop_vm.sh --force`.
+
+### `scripts/12_resize_vm-interactive.sh <vmname>`
+Interactive counterpart -- no flags. Shows the current config, prompts for
+each field (blank input keeps the current value; disk re-prompts if you
+try to shrink it), then confirms once before applying. Same underlying
+`resize_steps.sh` functions as the -automated variant.
 
 ## Snapshots (Phase 6, not yet built)
 

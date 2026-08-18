@@ -97,6 +97,7 @@ virt-install \
     --disk path="$SEED_PATH",device=cdrom \
     --os-variant "$OS_VARIANT" \
     --network network=default,model=virtio \
+    --channel unix,target_type=virtio,name=org.qemu.guest_agent.0 \
     --graphics none \
     --import \
     --print-xml --dry-run > "$RENDER_DIR/domain.xml"

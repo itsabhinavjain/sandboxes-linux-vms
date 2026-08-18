@@ -15,7 +15,9 @@ There are multiple ways of designing the system. In this file I am writing the v
     `virsh` or `sudo virsh`.
     - Path helpers: `disk_path <vmname>`, `seed_path <vmname>`,
     `state_path <vmname>`.
-    - State helpers (wrap `yq`): `state_init`, `state_get`, `state_set`.
+    - State helpers (wrap `yq`): `state_init`, `state_get`, `state_set`
+    (quoted/string values), `state_set_raw` (unquoted values, e.g. numbers —
+    matches how `state_init` writes `ram_mb`/`vcpus`/`disk_gb`).
     - `vm_exists`, `vm_is_running`.
     - `validate_vmname` — enforces `^[a-zA-Z0-9_-]+$`, called at the top of any
     script taking a vmname argument.
@@ -31,6 +33,7 @@ There are multiple ways of designing the system. In this file I am writing the v
 - `setup_config/user-data.tmpl` hardcodes user `abhinav`, three specific SSH keys, and timezone `Asia/Kolkata` — intentionally not parameterized beyond `${VMNAME}`.
 - SSH-into-VM and `11_configure_vm-interactive.sh` are flagged in `PLAN.md` as unverified end-to-end — treat as "believed correct but unverified." The 2026-08-18 rename/split (`00_init_vm-interactive.sh`, `11_configure_vm-automated.sh` real implementation, shared `lib/configure_steps.sh`, and folding `12_configure_vm-interactive.sh` into `11_configure_vm-interactive.sh` so both configure scripts share number `11`) is likewise unverified against a real host — see `PLAN.md` design decision #13.
 - There's no pause/resume script (`04_resume_vm.sh` was deleted 2026-08-18) — nothing in this toolkit calls `virsh suspend`, so it was dead code. Don't add it back without an actual pause use case.
+- `12_resize_vm-automated.sh` and `12_resize_vm-interactive.sh` share their stop/apply/start logic via `scripts/lib/resize_steps.sh`, same split pattern as `configure_steps.sh` — don't duplicate that logic back into either script. RAM/vCPU resizing always goes through `virsh set{maxmem,vcpus} --config` while the VM is stopped, never a live hotplug — `virt-install` defines memory/vcpus as a single current==max value with no separate live ceiling, so there's nothing to hotplug into; a `--config` edit only takes effect on next boot anyway. Disk resize is grow-only (`qemu-img resize`) — shrinking a qcow2 can destroy data past the new boundary and needs an in-guest filesystem shrink first, which this toolkit doesn't attempt. Don't add live/hotplug resize or disk shrink without an actual need for it.
 
 *Decision : Storage Pools*
 - Moved from a 4 pool system to a 5 pool system 
@@ -80,9 +83,27 @@ Operational rule : Treat the base cloud images as immutable.
     - Disable root login 
     - Disable login using password (only through keys) 
     - Setup updates, upgrades, unattended updates
+    - Install and enable `qemu-guest-agent` 
 - Separate Indempotent Script : 
     - Tailscale
     - UFW 
+    - Docker (moved out of cloud-init 2026-08-18 -- cloud-init only runs
+      once at first boot, so a VM created before Docker existed, or before a
+      Docker version bump, had no way to pick it up; `11_configure_vm-*`
+      already re-runs safely, so Docker installation lives there now,
+      idempotent via `command -v docker`, gated by `--skip-docker`)
+
+*Decision : qemu-guest-agent channel is new-VMs-only*
+`qemu-guest-agent` needs two things to actually work: the package running in
+the guest (cloud-init, see above) and a virtio-serial channel device on the
+libvirt domain XML (`--channel unix,target_type=virtio,name=org.qemu.guest_agent.0`
+on the `virt-install` call in `00_init_vm-automated.sh`) for the guest agent
+to connect to. The channel is only set at domain-definition time, so this
+only takes effect for VMs created after this change -- existing
+already-defined VMs won't get `virsh domifaddr --source agent` etc. working
+retroactively without being recreated or having the device attached to
+their XML by hand. Not worth automating a retrofit path for a personal
+sandbox tool.
 
 *Decision : Autostart settings*
 The VMs can be setup so that they autostart when the host linux machine restarts. This is now managed in this repo. 
@@ -138,7 +159,8 @@ All scripts live under `scripts/`, run from the repo root
 scripts/
   lib/
     common.sh              # sourced by every numbered script
-    configure_steps.sh     # shared by 11_.../12_... -- see design decision #13
+    configure_steps.sh     # shared by 11_configure_vm-automated/-interactive.sh -- see design decision #13
+    resize_steps.sh        # shared by 12_resize_vm-automated/-interactive.sh
   00_init_vm-automated.sh
   00_init_vm-interactive.sh
   01_start_vm.sh
@@ -152,6 +174,8 @@ scripts/
   51_info_vms.sh
   11_configure_vm-automated.sh   # see PLAN.md design decision #13
   11_configure_vm-interactive.sh
+  12_resize_vm-automated.sh
+  12_resize_vm-interactive.sh
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
 setup_config/

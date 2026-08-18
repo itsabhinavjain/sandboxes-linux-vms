@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Usage: scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]
+# Usage: scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]
 #
 # Fire-and-forget counterpart to 11_configure_vm-interactive.sh: same end
-# state (VM joined to the tailnet, UFW locked down to tailscale0-only) but
-# runs every step unconditionally over SSH, no prompts, so it can be used
-# non-interactively (e.g. chained after 01_start_vm.sh). Idempotent -- each
-# remote step already no-ops safely on a re-run (see
+# state (VM joined to the tailnet, UFW locked down to tailscale0-only,
+# Docker installed) but runs every step unconditionally over SSH, no
+# prompts, so it can be used non-interactively (e.g. chained after
+# 01_start_vm.sh). Idempotent -- each remote step already no-ops safely on
+# a re-run (see
 # scripts/lib/configure_steps.sh's remote step script), so running this
 # against an already-configured VM is safe.
 #
@@ -23,17 +24,19 @@ require_env
 
 check_bin ssh
 
-VMNAME="${1:?Usage: scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]}"
+VMNAME="${1:?Usage: scripts/11_configure_vm-automated.sh <vmname> [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]}"
 shift
 
 DO_TAILSCALE=1
 DO_UFW=1
+DO_DOCKER=1
 AUTHKEY="${TAILSCALE_AUTHKEY:-}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-tailscale) DO_TAILSCALE=0; shift ;;
         --skip-ufw)       DO_UFW=0; shift ;;
+        --skip-docker)    DO_DOCKER=0; shift ;;
         --authkey)        AUTHKEY="$2"; shift 2 ;;
         *) die "Unknown argument: $1" ;;
     esac
@@ -58,6 +61,14 @@ trap 'configure_cleanup_remote "$SSH_HOST"' EXIT
 
 log "Uploading configuration script..."
 configure_upload_remote_script "$SSH_HOST"
+
+DOCKER_STATE="skipped"
+
+if [[ "$DO_DOCKER" == "1" ]]; then
+    log "Installing/verifying Docker on '$VMNAME'..."
+    configure_run_step "$SSH_HOST" "$VMNAME" install-docker
+    DOCKER_STATE="installed"
+fi
 
 TAILSCALE_STATE="skipped"
 
@@ -105,6 +116,7 @@ else
 fi
 
 state_set "$VMNAME" .ufw "$UFW_STATE"
+state_set "$VMNAME" .docker "$DOCKER_STATE"
 
 log "Configuration complete for '$VMNAME'."
 if [[ "$TAILSCALE_STATE" == "up" && -n "${TAILSCALE_TAILNET:-}" ]]; then
