@@ -160,3 +160,5 @@ Prints the full state file contents and the Tailscale SSH hint for every
 managed VM (no `<vmname>` argument -- loops over all `*.state.yaml` files in
 `STORAGE_POOL_DISKS`, same as `50_list_vms.sh`). For a single VM's detail
 plus its full `virsh dominfo`, use `05_status_vm.sh <vmname>` instead.
+
+

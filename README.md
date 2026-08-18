@@ -25,6 +25,16 @@ export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
 export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ```
 
+Storage pools
+```
+- `images/` → pool `default` — read-only golden cloud `.img` files. Never modify the base image directly; VMs are qcow2 overlays.
+- `isos/` → pool `iso-pool` — reserved for installer ISOs, currently unused (cloud-image flow only).
+- `disks/` → pool `disk-pool` — flat, per-VM `<vmname>.qcow2` + `<vmname>.state.yaml`.
+- `snapshots/` → pool `snapshot-pool` — reserved for *external* snapshots; currently unused (internal qcow2 snapshots were chosen instead — don't build external-snapshot logic without revisiting this decision).
+- `cloud-init/` → pool `cloudinit-pool` — generated seed ISOs `<vmname>-seed.iso`.
+```
+
+
 Each VM would have a yaml file that would contain details of the VM. The same yaml files are used to check if there is already existing VM with the same name (during initialisation). The libvirt folder on the host would look broadly something like the following :-
 ```
 ├── libvirt
@@ -80,13 +90,18 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 # Managing multiple VMs (Managing the fleet)
 - `scripts/50_list_vms.sh`             # Will list all the vms and their statuses
 - `scripts/51_info_vms.sh`             # Dumps full state.yaml detail for every VM (no vmname arg) 
-
 ```
 
 ## Notes 
 - Naming convention of virtual machines : 
     - `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
-- [Logs and Decisions](./LOGS.md)
-- [Implmentation Plan and roadmap](./PLAN.md)
-- [Lifecycle scripts](./lifecycle.md)
-- [libvirt reference](./docs/libvirt_reference.md)
+
+## References
+- Usage 
+    - [Linux host setup](./SETUP.md) 
+    - [Lifecycle scripts](./lifecycle.md)
+- Development 
+    - [Implmentation Plan, Roadmap and Implentation Logs](./PLAN.md) : Mentions the various additional things that I can implement in this repo 
+    - [Design Decisions and Policies](./DECISIONS.md)
+- Additional Documentation 
+    - [libvirt reference](./docs/libvirt_reference.md)
