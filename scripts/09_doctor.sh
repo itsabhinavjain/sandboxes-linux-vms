@@ -4,7 +4,9 @@
 # Host-level diagnostics: KVM support, libvirtd status, required binaries,
 # storage pool definitions/state, storage directory setgid bits, and virsh
 # access without sudo. Prints [PASS]/[FAIL] per check; exits 1 if any check
-# failed, 0 if everything passed.
+# failed, 0 if everything passed. Also prints an informational host-details
+# section (OS, kernel, CPUs, memory, disk space, listening ports) that does
+# not affect pass/fail or the exit code.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 
@@ -86,8 +88,40 @@ fi
 echo ""
 if [[ $FAILURES -eq 0 ]]; then
     log "All checks passed."
-    exit 0
 else
     log "$FAILURES check(s) failed."
+fi
+
+# --- Host details (informational only -- doesn't affect FAILURES/exit code) ---
+
+echo ""
+log "Host details"
+
+if [[ -f /etc/os-release ]]; then
+    OS_PRETTY="$(. /etc/os-release && echo "$PRETTY_NAME")"
+else
+    OS_PRETTY="unknown"
+fi
+printf "OS:      %s (kernel %s)\n" "$OS_PRETTY" "$(uname -r)"
+
+printf "CPUs:    %s\n" "$(nproc)"
+
+echo "Memory:"
+free -h | sed 's/^/  /'
+
+echo "Disk space (under \$LIBVIRT_HOME: $LIBVIRT_HOME):"
+df -h "$LIBVIRT_HOME" | sed 's/^/  /'
+
+echo "Listening ports (TCP/UDP):"
+if command -v ss >/dev/null 2>&1; then
+    ss -tuln | sed 's/^/  /'
+else
+    echo "  ss not available -- skipping"
+fi
+
+echo ""
+if [[ $FAILURES -eq 0 ]]; then
+    exit 0
+else
     exit 1
 fi

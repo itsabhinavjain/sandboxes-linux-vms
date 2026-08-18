@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Usage: scripts/00_init_vm.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
+# Usage: scripts/00_init_vm-automated.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
 #
 # Defines a new VM without starting it: creates a qcow2 overlay disk backed
 # by the base cloud image, builds a cloud-init seed ISO, and `virsh define`s
 # the domain. Run 01_start_vm.sh afterwards to boot it.
+#
+# Non-interactive counterpart to 00_init_vm-interactive.sh, which prompts for
+# these same values (with defaults) and then execs into this script.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 
@@ -13,7 +16,7 @@ check_bin cloud-localds
 check_bin envsubst
 check_bin yq
 
-VMNAME="${1:?Usage: $0 <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]}"
+VMNAME="${1:?Usage: scripts/00_init_vm-automated.sh <vmname> [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]}"
 shift
 
 RAM="$DEFAULT_RAM_MB"
@@ -60,7 +63,7 @@ cleanup() {
     local rc=$?
     [[ -n "$RENDER_DIR" && -d "$RENDER_DIR" ]] && rm -rf "$RENDER_DIR"
     if [[ $rc -ne 0 ]]; then
-        log "00_init_vm.sh failed (exit $rc) -- rolling back partial state for '$VMNAME'"
+        log "00_init_vm-automated.sh failed (exit $rc) -- rolling back partial state for '$VMNAME'"
         "${VIRSH[@]}" destroy "$VMNAME" >/dev/null 2>&1 || true
         "${VIRSH[@]}" undefine "$VMNAME" --nvram >/dev/null 2>&1 || true
         rm -f "$DISK_PATH" "$SEED_PATH" "$(state_path "$VMNAME")"

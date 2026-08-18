@@ -30,27 +30,28 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 - Environment variables are resolved with the following precedence, lowest to highest:
   1. System-level environment variables (see above)
   2. `.env` in the repo root, if present -- overrides #1
-  3. Parameters passed to a script (e.g. `--ram` on `00_init_vm.sh`) -- overrides both #1 and #2
+  3. Parameters passed to a script (e.g. `--ram` on `00_init_vm-automated.sh`) -- overrides both #1 and #2
 - `.env` is gitignored, so host- or checkout-specific overrides never get committed
 - `scripts/lib/common.sh` loads `.env` automatically (every script sources `common.sh`); nothing else to run
 
 ## Scripts 
 - See [lifecycle.md](./lifecycle.md) for the full contract of each script.
-- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
-- Naming convention: scripts that operate on a single VM (`<vmname>` as the first argument) are numbered `00`-`08` and suffixed `_vm.sh`. Scripts that operate across all VMs on the host are numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level (no VM involved at all), so it carries neither suffix.
+- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm-automated.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
+- Naming convention: scripts that operate on a single VM (`<vmname>` as the first argument) are numbered `00`-`08` and suffixed `_vm.sh`. Scripts that operate across all VMs on the host are numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level (no VM involved at all), so it carries neither suffix. Scripts that have both a non-interactive and an interactive variant carry a `-automated`/`-interactive` suffix after `_vm` (e.g. `00_init_vm-automated.sh` / `00_init_vm-interactive.sh`).
 
 ### Sandbox Lifecycle Scripts 
-- `scripts/00_init_vm.sh`              # Helps in setting up the hostname etc. It should check that the same name is not currently in use. It should also ask for specifications (with defaults) for RAM, CPU, Disk Size etc 
+- Init (choose one)
+    - `scripts/00_init_vm-automated.sh`    # Flag/env-driven: RAM, CPU, disk size etc. all have defaults, override with flags
+    - `scripts/00_init_vm-interactive.sh`  # Prompts for VM name and shape (RAM, CPU, disk size etc., with defaults), then hands off to the automated script
 - `scripts/01_start_vm.sh`             # Starts the VM 
 - `scripts/02_stop_vm.sh`
 - `scripts/03_reboot_vm.sh`
-- `scripts/04_resume_vm.sh`
 - `scripts/05_destroy_vm.sh`
 - `scripts/08_status_vm.sh`            # Gives the status and info 
 - `scripts/09_doctor.sh`               # Runs diagnostic tests 
-- Configuration
-    - `scripts/11_configure-automated_vm.sh`   
-    - `scripts/12_configure-manual_vm.sh`      
+- Configuration (choose one)
+    - `scripts/11_configure_vm-automated.sh`    # Fire-and-forget: runs every step unconditionally, no prompts
+    - `scripts/11_configure_vm-interactive.sh`  # Confirms before each step, streams output live
 - Snapshots (not yet built, see PLAN.md Phase 6)
     - `scripts/21_snapshot_vm.sh`
     - `scripts/22_restore_vm.sh`

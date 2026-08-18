@@ -31,7 +31,7 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
      directly in this dir (not subdirectories, so libvirt's dir-pool volume
      scan sees them): `<vmname>.qcow2`, `<vmname>.state.yaml`.
    - `STORAGE_POOL_CLOUD_INIT_ISOS` (`cloudinit-pool`) — cloud-init seed
-     ISOs built by `00_init_vm.sh` (`<vmname>-seed.iso`), kept separate from
+     ISOs built by `00_init_vm-automated.sh` (`<vmname>-seed.iso`), kept separate from
      `STORAGE_POOL_DISKS` and `STORAGE_POOL_ISOS` for mental clarity: this
      pool holds *generated configuration disks*, not installer media or
      persistent VM disks.
@@ -50,13 +50,13 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    `chmod g+s` (setgid) on the pool directories so new files inherit group
    `kvm` automatically. `lib/common.sh` pins `virsh -c qemu:///system`
    explicitly rather than relying on ambient default URI.
-7. **Definition vs. start are separate steps.** `00_init_vm.sh` defines the
+7. **Definition vs. start are separate steps.** `00_init_vm-automated.sh` defines the
    domain without booting it (`virt-install --print-xml --dry-run` piped
    into `virsh define`); `01_start_vm.sh` actually starts it. This matches the
    numbered-script intent in README.md (00 = init/define, 01 = start) and is
    cleaner than `virt-install --import` (which both defines and boots in one
    step, as `previous_scripts/create-vm.sh` did).
-8. **Libvirt autostart is a `00_init_vm.sh` flag, defaulting to off.**
+8. **Libvirt autostart is a `00_init_vm-automated.sh` flag, defaulting to off.**
    `--autostart`/`--no-autostart` sets the libvirt "start me when libvirtd
    starts" flag (independent of whether the VM was running before the host
    went down). Default is `DEFAULT_AUTOSTART` (optional env var, not in
@@ -66,9 +66,9 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    `state.yaml` (`autostart: true|false`) and surfaced in `08_status_vm.sh`,
    `51_info_vms.sh`, `50_list_vms.sh`.
 9. **Tailscale/UFW live in a post-boot configuration script run over SSH
-   (currently `12_configure-manual_vm.sh`), not in `user-data.tmpl`/
+   (currently `11_configure_vm-interactive.sh`), not in `user-data.tmpl`/
    cloud-init.** Two reasons: (a) cloud-init only runs once --
-   `00_init_vm.sh` disables it after first boot -- so anything baked into
+   `00_init_vm-automated.sh` disables it after first boot -- so anything baked into
    the template can never be changed on an existing VM without
    destroy+recreate, whereas a script run over SSH is re-runnable; (b)
    joining Tailscale needs a secret (`TAILSCALE_AUTHKEY`), and design
@@ -107,13 +107,55 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    happens, port the old provisioning logic (single non-interactive SSH run,
    authkey piped over stdin, same ordering-safety rule) back into `11_...`
    -- it's preserved in git history (see the commit that stubbed it out).
+13. **(2026-08-18) Naming convention standardized to `NN_verb_vm-modality.sh`;
+   `11_...` implemented for real; `04_resume_vm.sh` deleted.** Supersedes the
+   "stub" state described in decisions #11/#12 above (left as-is for
+   history). Three changes, all by request:
+   - Renamed `00_init_vm.sh` → `00_init_vm-automated.sh` and added
+     `00_init_vm-interactive.sh` (prompts for vmname/RAM/vCPUs/disk/image/
+     os-variant/autostart with `DEFAULT_*` env vars as defaults, then execs
+     into `00_init_vm-automated.sh`). Same split, and terminology
+     ("interactive", not "manual"), applied to the configure scripts:
+     `11_configure-automated_vm.sh` → `11_configure_vm-automated.sh`,
+     `12_configure-manual_vm.sh` → `11_configure_vm-interactive.sh`. Both
+     configure scripts now share the number `11`, matching `00`'s pattern of
+     "same number, `-automated`/`-interactive` suffix decides the variant" --
+     this also fixes the prior inconsistency where `11`/`12` put the
+     modifier between the verb and `_vm` while `00` had no modifier at all.
+     `12` is now free.
+   - `11_configure_vm-automated.sh` is no longer a stub: it's the
+     fire-and-forget counterpart to `11_configure_vm-interactive.sh`, running
+     every step unconditionally (no `confirm()` calls) but keeping the same
+     tailscale-before-ufw safety ordering. Idempotency relies on the remote
+     steps themselves already no-oping safely on a re-run (tailscale install
+     checks `command -v`, the `ufw allow` rule is safe to repeat).
+   - The SSH/remote-step-script machinery that the interactive script used to
+     own outright (host resolution, remote script upload,
+     `run_step`/`check_step`, the tailscale/ufw remote actions) moved into
+     `scripts/lib/configure_steps.sh`, sourced by both `11_configure_vm-automated.sh`
+     and `11_configure_vm-interactive.sh`, so the two scripts differ only in
+     *how* each step is triggered (unconditional vs. `confirm()`-gated), not
+     in duplicated logic.
+   - `04_resume_vm.sh` (`virsh resume` for a paused domain) was deleted:
+     nothing in this toolkit ever pauses a VM (no `virsh suspend` caller
+     anywhere), so it was dead code reachable only if a VM were paused
+     out-of-band. Not paired with a new pause script since there's no
+     current use case for one.
+   - **Not yet tested against a real host** (renamed/refactored via `git mv`
+     + edits, syntax-checked with `bash -n` only — Claude does not run
+     lifecycle scripts directly, see `CLAUDE.md`). Before trusting this in
+     day-to-day use, verify: `00_init_vm-interactive.sh` end-to-end,
+     `11_configure_vm-automated.sh` against a running test VM (including
+     re-running it to confirm the idempotency claim above), and that
+     `11_configure_vm-interactive.sh` still behaves identically to the old
+     `12_configure-manual_vm.sh` now that it sources the shared lib.
 
 ## Best practices adopted (vs. previous_scripts/)
 
 - `set -euo pipefail` everywhere (previous scripts only had `set -e`).
 - Validate `vmname` against `^[a-zA-Z0-9_-]+$` before it's used in any path
   or virsh command — previous scripts did zero validation.
-- `00_init_vm.sh` traps failures and rolls back partial state (e.g. qcow2
+- `00_init_vm-automated.sh` traps failures and rolls back partial state (e.g. qcow2
   created but seed ISO build failed) so a retry doesn't hit "file already
   exists."
 - `yq` added to SETUP.md's dependency list (not previously listed, needed
@@ -122,7 +164,7 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
 ## Why previous_scripts/ can be deleted once this is done
 
 `previous_scripts/create-vm.sh` + `user-data.tmpl` → superseded by
-`00_init_vm.sh` + `01_start_vm.sh` + `setup_config/{user-data,meta-data}.tmpl`.
+`00_init_vm-automated.sh` + `01_start_vm.sh` + `setup_config/{user-data,meta-data}.tmpl`.
 `previous_scripts/delete-vm.sh` → superseded by `05_destroy_vm.sh`.
 `testing-virtual-machines-{meta-data,user-data}` are just example *rendered
 output* from a prior run, not templates — nothing to port. Verified line by
@@ -135,24 +177,25 @@ SSH in → destroy) has actually succeeded once.**
 ## Directory structure (actual)
 
 All scripts live under `scripts/`, run from the repo root
-(e.g. `./scripts/00_init_vm.sh myvm`).
+(e.g. `./scripts/00_init_vm-automated.sh myvm`).
 
 ```
 scripts/
   lib/
     common.sh              # sourced by every numbered script
-  00_init_vm.sh
+    configure_steps.sh     # shared by 11_.../12_... -- see design decision #13
+  00_init_vm-automated.sh
+  00_init_vm-interactive.sh
   01_start_vm.sh
   02_stop_vm.sh
   03_reboot_vm.sh
-  04_resume_vm.sh
   05_destroy_vm.sh
   08_status_vm.sh
   09_doctor.sh
   50_list_vms.sh
   51_info_vms.sh
-  11_configure-automated_vm.sh   # stub -- see PLAN.md design decision #12
-  12_configure-manual_vm.sh
+  11_configure_vm-automated.sh   # see PLAN.md design decision #13
+  11_configure_vm-interactive.sh
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
 setup_config/
@@ -188,7 +231,7 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 
 ## Script specs
 
-- **00_init_vm.sh `<vmname> [--ram N] [--vcpus N] [--disk N] [--image NAME]`** —
+- **00_init_vm-automated.sh `<vmname> [--ram N] [--vcpus N] [--disk N] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]`** —
   validate name unused (state file + `$VIRSH list --all`), validate base
   image exists in `STORAGE_POOL_IMAGES`, create qcow2 overlay in
   `STORAGE_POOL_DISKS` backed by the base image, render
@@ -197,12 +240,15 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
   --dry-run`) and `virsh define` it (no boot), write initial
   `<vmname>.state.yaml` (`status: defined`, resources, base image,
   created_at). Trap-based rollback on any failure.
+- **00_init_vm-interactive.sh** — no args; prompts for vmname (validated) and
+  shape (RAM/vCPUs/disk/image/os-variant/autostart, `DEFAULT_*` env vars as
+  defaults), then `exec`s into `00_init_vm-automated.sh` with the collected
+  values as flags. Owns none of the disk/domain-creation logic itself.
 - **01_start_vm.sh `<vmname>`** — `$VIRSH start`; state → `status: running`,
   `started_at`.
 - **02_stop_vm.sh `<vmname> [--force]`** — graceful `$VIRSH shutdown`, or
   `$VIRSH destroy` with `--force`; update state.
 - **03_reboot_vm.sh `<vmname>`** — `$VIRSH reboot`; touch state timestamp.
-- **04_resume_vm.sh `<vmname>`** — `$VIRSH resume` for suspended domains.
 - **05_destroy_vm.sh `<vmname> [--force]`** — confirm (unless `--force`),
   force-stop if running, `$VIRSH undefine --remove-all-storage --nvram`,
   sweep leftover disk/seed/state files, print the
@@ -217,37 +263,50 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
   live status from `$VIRSH list --all`, print a table.
 - **51_info_vms.sh** — no vmname arg; loop over all `STORAGE_POOL_DISKS/*.state.yaml`
   and dump full state file detail + Tailscale hostname hint per VM.
-- **11_configure-automated_vm.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
-  stub. Same usage line as `12_...` for when it's implemented, but the body
-  is just `require_env` + `die` pointing at `12_configure-manual_vm.sh`. See
-  design decision #12.
-- **12_configure-manual_vm.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
+- **11_configure_vm-automated.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
+  fire-and-forget: resolves SSH host, uploads the shared remote step script
+  (`lib/configure_steps.sh`), runs install-tailscale → bring-up-tailscale →
+  poll for `tailscale0` → configure-ufw unconditionally, no prompts. Same
+  tailscale-before-ufw safety ordering as `11_configure_vm-interactive.sh`.
+  See design decision #13.
+- **11_configure_vm-interactive.sh `<vmname> [--skip-tailscale] [--skip-ufw] [--authkey KEY]`** —
   same flags, host resolution, and tailscale-before-ufw ordering rule as
-  `11_...`, but interactive: `confirm`s before each step (install Tailscale,
-  `tailscale up`, enable UFW) and runs it over `ssh -tt` (real pty) so output
-  streams live instead of running unattended. Declining a step is not an
-  error -- `.tailscale`/`.ufw` in the state file are set to `up`/`enabled`
-  only for steps actually run and confirmed, `skipped` otherwise.
+  `11_configure_vm-automated.sh`, but interactive: `confirm`s before each step
+  (install Tailscale, `tailscale up`, enable UFW) and runs it over `ssh -tt`
+  (real pty) so output streams live instead of running unattended. Declining
+  a step is not an error -- `.tailscale`/`.ufw` in the state file are set to
+  `up`/`enabled` only for steps actually run and confirmed, `skipped`
+  otherwise. Both configure scripts source `lib/configure_steps.sh` for host
+  resolution, remote script upload, and the remote actions themselves -- they
+  differ only in how each step is triggered.
 - **21/22** — deferred to Phase 6 (see open question above).
 
 ## Build order / phases
 
 - **Phase 0 — Foundations.** `lib/common.sh`, `env.sample`,
   `setup_config/*.tmpl`, SETUP.md updates (setgid + yq), `lifecycle.md`.
-- **Phase 1 — Core lifecycle.** `00_init_vm.sh`, `01_start_vm.sh`, `05_destroy_vm.sh`.
+- **Phase 1 — Core lifecycle.** `00_init_vm-automated.sh`, `01_start_vm.sh`, `05_destroy_vm.sh`.
 - **Phase 2 — Rest of single-VM lifecycle.** `02_stop_vm.sh`, `03_reboot_vm.sh`,
-  `04_resume_vm.sh`, `08_status_vm.sh`.
+  `08_status_vm.sh`. (`04_resume_vm.sh` was built here too, then deleted
+  2026-08-18 as dead code -- see design decision #13.)
 - **Phase 3 — Fleet view.** `50_list_vms.sh`, `51_info_vms.sh`.
 - **Phase 4 — Diagnostics.** `09_doctor.sh`.
 - **Phase 5 — Cleanup.** Delete `previous_scripts/` once Phase 1/2 has been
   tested end-to-end against a real VM.
-- **Phase 5.5 — Automated configuration.** `11_configure-automated_vm.sh`.
-  Deferred by request (2026-08-16) -- kept as a stub, see design decision
-  #12. Not on the critical path; revisit whenever a fire-and-forget
-  Tailscale/UFW pass is wanted.
-- **Phase 5.75 — Interactive configuration.** `12_configure-manual_vm.sh`
+- **Phase 5.5 — Automated configuration.** `11_configure_vm-automated.sh`.
+  Originally deferred by request (2026-08-16, kept as a stub, see design
+  decision #12); implemented for real 2026-08-18 as a fire-and-forget
+  counterpart to `11_configure_vm-interactive.sh`, sharing step logic via
+  `lib/configure_steps.sh` -- see design decision #13. Not yet tested against
+  a real host.
+- **Phase 5.75 — Interactive configuration.** `11_configure_vm-interactive.sh`
   (Tailscale + UFW, post-boot over SSH, confirm-gated and streamed over
-  `ssh -tt`). This is the currently-active configuration path.
+  `ssh -tt`). Renamed from `12_configure-manual_vm.sh` (via an intermediate
+  `12_configure_vm-interactive.sh`) and refactored to use the shared step lib
+  2026-08-18 (behavior unchanged) -- see design decision #13. Now shares
+  number `11` with the automated variant, matching `00`'s pattern.
+  Also added `00_init_vm-interactive.sh` in this pass (prompts for vmname/shape,
+  execs into `00_init_vm-automated.sh`).
 - **Phase 6 — Deferred.** `21/22` snapshot scripts, once the snapshot-pool
   (internal vs external) question is resolved.
 
@@ -264,7 +323,7 @@ Per phase:
   source it in a shell with the env vars set and call each helper function
   once.
 - **Phase 1:** After host bootstrap is confirmed and done (run from repo root):
-  1. `./scripts/00_init_vm.sh sandbox-test-01` — verify qcow2 + seed ISO +
+  1. `./scripts/00_init_vm-automated.sh sandbox-test-01` — verify qcow2 + seed ISO +
      state.yaml created in `STORAGE_POOL_DISKS`, domain shows in
      `virsh -c qemu:///system list --all` as shut off.
   2. `./scripts/01_start_vm.sh sandbox-test-01` — verify domain running
@@ -272,13 +331,14 @@ Per phase:
      succeeds.
   3. `./scripts/05_destroy_vm.sh sandbox-test-01` — verify domain undefined,
      disk/seed/state files removed, `virsh list --all` no longer shows it.
-  4. Re-run `00_init_vm.sh` with the same name immediately after to confirm no
+  4. Re-run `00_init_vm-automated.sh` with the same name immediately after to confirm no
      leftover-file conflicts.
+  5. `./scripts/00_init_vm-interactive.sh` — verify the prompts (with blank
+     input to accept every default) produce the same result as step 1.
 - **Phase 2:** For a running test VM, exercise `02_stop_vm.sh` (graceful),
   confirm `virsh list` shows shut off; `01_start_vm.sh` again; `03_reboot_vm.sh`
-  and confirm uptime resets; `02_stop_vm.sh --force`; `04_resume_vm.sh` after a
-  `virsh suspend` done manually; `08_status_vm.sh` at each state transition and
-  confirm it reflects reality.
+  and confirm uptime resets; `02_stop_vm.sh --force`; `08_status_vm.sh` at each
+  state transition and confirm it reflects reality.
 - **Phase 3:** With 0, 1, and 2+ VMs defined, run `50_list_vms.sh` and confirm
   the table matches `virsh list --all`. Run `51_info_vms.sh` and confirm it
   prints detail for every defined VM, including one that's defined-but-not-
@@ -357,10 +417,12 @@ step via `confirm` leaves `.tailscale`/`.ufw` as `skipped` in state.yaml.
 - [x] Phase 3 — Fleet view (tested against a real host, see above)
 - [x] Phase 4 — Diagnostics (tested against a real host, see above)
 - [x] Phase 5 — Cleanup (previous_scripts/ removed)
-- [ ] Phase 5.5 — Automated configuration (`11_configure-automated_vm.sh`;
-      deferred by request, kept as a stub -- see note below)
-- [x] Phase 5.75 — Interactive configuration (`12_configure-manual_vm.sh`;
-      not yet tested against a real host, see note below)
+- [ ] Phase 5.5 — Automated configuration (`11_configure_vm-automated.sh`;
+      implemented for real 2026-08-18, not yet tested against a real host --
+      see design decision #13)
+- [x] Phase 5.75 — Interactive configuration (`11_configure_vm-interactive.sh`,
+      renamed + refactored to share step logic 2026-08-18; not yet tested
+      against a real host, see note below)
 - [ ] Phase 6 — Deferred (`21/22` snapshot scripts)
 
 (Update the checklist above as phases complete.)

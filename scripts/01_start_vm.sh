@@ -6,8 +6,8 @@ require_env
 VMNAME="${1:?Usage: $0 <vmname>}"
 validate_vmname "$VMNAME"
 
-[[ -f "$(state_path "$VMNAME")" ]] || die "VM '$VMNAME' has no state file -- run scripts/00_init_vm.sh $VMNAME first."
-vm_exists "$VMNAME" || die "VM '$VMNAME' is not defined in libvirt -- run scripts/00_init_vm.sh $VMNAME first."
+[[ -f "$(state_path "$VMNAME")" ]] || die "VM '$VMNAME' has no state file -- run scripts/00_init_vm-automated.sh $VMNAME first."
+vm_exists "$VMNAME" || die "VM '$VMNAME' is not defined in libvirt -- run scripts/00_init_vm-automated.sh $VMNAME first."
 
 if vm_is_running "$VMNAME"; then
     log "VM '$VMNAME' is already running."
