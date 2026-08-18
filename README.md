@@ -1,5 +1,5 @@
 # Sandbox - Linux VMs
-The repo can be used to quickly have new linux vms provisioned on a Linux host. 
+This is an opionated repo that can be used to provision a fleet of VMs on a linux host machine using libvirt. 
 - Step 1 : Make sure that the Linux host has been setup as defined [SETUP.md](./SETUP.md)
     - You might want to run the doctor script to check if the host and the environment variables have been set up properly. 
 - Step 2 : Use the Lifecycle scripts to create and manage the virtual machines
@@ -25,6 +25,23 @@ export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
 export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ```
 
+Each VM would have a yaml file that would contain details of the VM. The same yaml files are used to check if there is already existing VM with the same name (during initialisation). The libvirt folder on the host would look broadly something like the following :-
+```
+├── libvirt
+│   ├── cloud-init
+│   │   ├── vir-testing-001-seed.iso
+│   │   └── vir-testing-002-seed.iso
+│   ├── disks
+│   │   ├── vir-testing-001.qcow2
+│   │   ├── vir-testing-001.state.yaml
+│   │   ├── vir-testing-002.qcow2
+│   │   └── vir-testing-002.state.yaml
+│   ├── images
+│   │   └── noble-server-cloudimg-amd64.img
+│   ├── isos
+│   └── snapshots
+```
+
 ## Requirements for the repo 
 - Copy [`env.sample`](./env.sample) to `.env` in the repo root and uncomment/edit whatever you want to override: `cp env.sample .env`
 - Environment variables are resolved with the following precedence, lowest to highest:
@@ -37,9 +54,10 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ## Scripts 
 - See [lifecycle.md](./lifecycle.md) for the full contract of each script.
 - All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm-automated.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
-- Naming convention: scripts that operate on a single VM (`<vmname>` as the first argument) are numbered `00`-`05` and suffixed `_vm.sh`. Scripts that operate across all VMs on the host are numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level (no VM involved at all), so it carries neither suffix. `08_test.sh` is likewise host-level -- an end-to-end smoke test that creates and destroys its own ephemeral test VMs, so it takes no vmname argument either. Scripts that have both a non-interactive and an interactive variant carry a `-automated`/`-interactive` suffix after `_vm` (e.g. `00_init_vm-automated.sh` / `00_init_vm-interactive.sh`).
 
-### Sandbox Lifecycle Scripts 
+### Sandbox Lifecycle Scripts (Summary) 
+```
+# For a paricular VM 
 - Init (choose one)
     - `scripts/00_init_vm-automated.sh`    # Flag/env-driven: RAM, CPU, disk size etc. all have defaults, override with flags
     - `scripts/00_init_vm-interactive.sh`  # Prompts for VM name and shape (RAM, CPU, disk size etc., with defaults), then hands off to the automated script
@@ -48,8 +66,6 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 - `scripts/03_reboot_vm.sh`
 - `scripts/04_destroy_vm.sh`
 - `scripts/05_status_vm.sh`            # Gives the status and info 
-- `scripts/09_doctor.sh`               # Runs diagnostic tests 
-- `scripts/08_test.sh`                 # End-to-end smoke test: doctor -> init -> lifecycle -> destroy, against ephemeral test VMs
 - Configuration (choose one)
     - `scripts/11_configure_vm-automated.sh`    # Fire-and-forget: runs every step unconditionally, no prompts
     - `scripts/11_configure_vm-interactive.sh`  # Confirms before each step, streams output live
@@ -57,13 +73,20 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
     - `scripts/21_snapshot_vm.sh`
     - `scripts/22_restore_vm.sh`
 
-### Managing Sandboxes 
+# Testing setups 
+- `scripts/09_doctor.sh`               # Runs diagnostic tests 
+- `scripts/08_test.sh`                 # End-to-end smoke test: doctor -> init -> lifecycle -> destroy, against ephemeral test VMs
+
+# Managing multiple VMs (Managing the fleet)
 - `scripts/50_list_vms.sh`             # Will list all the vms and their statuses
 - `scripts/51_info_vms.sh`             # Dumps full state.yaml detail for every VM (no vmname arg) 
 
+```
+
 ## Notes 
-- Naming convention : `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
-- `state.yaml` : Will have the state of the vm and will be kept updated by the scripts. 
+- Naming convention of virtual machines : 
+    - `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
 - [Logs and Decisions](./LOGS.md)
 - [Implmentation Plan and roadmap](./PLAN.md)
+- [Lifecycle scripts](./lifecycle.md)
 - [libvirt reference](./docs/libvirt_reference.md)
