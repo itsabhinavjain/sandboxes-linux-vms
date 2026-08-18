@@ -2,7 +2,7 @@
 # Usage: scripts/08_test.sh
 #
 # End-to-end smoke test of the sandbox lifecycle tooling against a real
-# libvirt host. Runs 09_doctor.sh first (aborts immediately if the host
+# libvirt host. Runs 09_doctor_host.sh first (aborts immediately if the host
 # isn't correctly configured), then exercises the full single-VM lifecycle
 # -- init (both the automated and interactive paths) -> start -> wait for
 # cloud-init to actually finish provisioning -> status -> reboot -> stop ->
@@ -19,7 +19,7 @@ NAME
 USAGE
     scripts/08_test.sh
 
-    No arguments. Runs 09_doctor.sh first (aborts immediately if it fails),
+    No arguments. Runs 09_doctor_host.sh first (aborts immediately if it fails),
     then exercises the full single-VM lifecycle -- init (both the flag-driven
     and -i/--interactive paths of 00_init_vm.sh) -> start -> wait for
     cloud-init -> status -> reboot -> stop -> fleet views -> destroy --
@@ -168,11 +168,11 @@ wait_for_cloudinit() {
 }
 
 # --- Step 1: host diagnostics ---
-step "Host diagnostics (09_doctor.sh)"
-if "$SCRIPT_DIR/09_doctor.sh"; then
-    pass "09_doctor.sh"
+step "Host diagnostics (09_doctor_host.sh)"
+if "$SCRIPT_DIR/09_doctor_host.sh"; then
+    pass "09_doctor_host.sh"
 else
-    fail "09_doctor.sh -- host is not correctly configured, aborting test"
+    fail "09_doctor_host.sh -- host is not correctly configured, aborting test"
     exit 1
 fi
 

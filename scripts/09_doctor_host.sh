@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/09_doctor.sh
+# Usage: scripts/09_doctor_host.sh
 #
 # Host-level diagnostics: KVM support, libvirtd status, required binaries,
 # storage pool definitions/state, storage directory setgid bits, and virsh
@@ -7,19 +7,24 @@
 # failed, 0 if everything passed. Also prints an informational host-details
 # section (OS, kernel, CPUs, memory, disk space, listening ports) that does
 # not affect pass/fail or the exit code.
+#
+# For a single VM's own configuration (libvirt/state consistency, guest
+# Tailscale/UFW/Docker/cloud-init), see 06_doctor_vm.sh instead.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 USAGE=$(cat <<EOF
 NAME
-    09_doctor.sh -- host-level diagnostics for the sandbox toolkit
+    09_doctor_host.sh -- host-level diagnostics for the sandbox toolkit
 
 USAGE
-    scripts/09_doctor.sh
+    scripts/09_doctor_host.sh
 
     No arguments. Checks KVM support, libvirtd status, required binaries,
     the five storage pools, and setgid bits on their directories. Prints
     [PASS]/[FAIL] per check plus informational host details. Exits 1 if any
     check failed, 0 otherwise.
+
+    For a single VM's own configuration, see 06_doctor_vm.sh instead.
 
 OPTIONS
     -h, --help  Show this help and exit

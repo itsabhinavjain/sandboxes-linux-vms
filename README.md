@@ -77,6 +77,7 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 - `scripts/03_reboot_vm.sh`
 - `scripts/04_destroy_vm.sh`
 - `scripts/05_status_vm.sh`            # Gives the status and info 
+- `scripts/06_doctor_vm.sh <vmname>`   # Per-VM diagnostics: libvirt/state consistency + guest Tailscale/UFW/Docker/cloud-init
 - `scripts/11_configure_vm.sh <vmname> [-i|--interactive] [options]`  # Docker, Tailscale, UFW
     # Without -i: fire-and-forget -- runs every step unconditionally, no prompts
     # With -i: confirms before each step, streams output live
@@ -88,7 +89,7 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
     - `scripts/22_restore_vm.sh`
 
 # Testing setups 
-- `scripts/09_doctor.sh`               # Runs diagnostic tests 
+- `scripts/09_doctor_host.sh`          # Host-level diagnostic tests
 - `scripts/08_test.sh`                 # End-to-end smoke test: doctor -> init -> lifecycle -> destroy, against ephemeral test VMs
 
 # Managing multiple VMs (Managing the fleet)

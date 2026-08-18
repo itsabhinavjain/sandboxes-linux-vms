@@ -11,10 +11,11 @@ Every script accepts `-h`/`--help` and prints its own full flag reference
 for exact flags; this file stays focused on the "why" and cross-script
 behavior instead of restating every flag.
 
-Naming convention: single-VM scripts are numbered `00`-`05` and suffixed
+Naming convention: single-VM scripts are numbered `00`-`06` and suffixed
 `_vm.sh`; fleet-wide scripts (operate across all VMs on the host) are
-numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level
-diagnostics with no VM involved, so it carries neither suffix. `08_test.sh`
+numbered `50`+ and suffixed `_vms.sh`. `09_doctor_host.sh` is host-level
+diagnostics with no single VM involved, hence the `_host` suffix instead --
+for a single VM's own diagnostics, see `06_doctor_vm.sh` below. `08_test.sh`
 is likewise host-level -- an end-to-end smoke test that creates and destroys
 its own ephemeral test VMs -- so it takes no vmname argument either.
 
@@ -65,6 +66,7 @@ script's own section further down, or its `--help`, for the full flag list.
 **Check on a VM, or on everything:**
 ```
 ./scripts/05_status_vm.sh myvm      # one VM, full detail
+./scripts/06_doctor_vm.sh myvm      # one VM, diagnostics (is it properly configured?)
 ./scripts/50_list_vms.sh            # every VM, one-line-per-VM table
 ./scripts/51_info_vms.sh            # every VM, full detail
 ```
@@ -97,8 +99,13 @@ script's own section further down, or its `--help`, for the full flag list.
 
 **Before doing any of the above on a new host, or if something seems off:**
 ```
-./scripts/09_doctor.sh              # host-level diagnostics
+./scripts/09_doctor_host.sh         # host-level diagnostics
 ./scripts/08_test.sh                # full smoke test against real (ephemeral) VMs
+```
+
+**A specific VM seems off (can't SSH in, Docker/Tailscale/UFW not behaving):**
+```
+./scripts/06_doctor_vm.sh myvm      # per-VM diagnostics
 ```
 
 **Forgot a flag?** Every script takes `-h`/`--help` and prints its full
@@ -156,7 +163,39 @@ SSH'd into it. Prompts for confirmation unless `--force` is given.
 Shows `virsh dominfo` merged with the state file contents, plus the
 Tailscale SSH hint (`<vmname>.<tailnet>.ts.net`).
 
-### `scripts/09_doctor.sh`
+### `scripts/06_doctor_vm.sh <vmname>`
+Per-VM diagnostics -- is *this* VM properly configured? Two groups of
+checks, both `[PASS]`/`[FAIL]` per check, exits 1 if any failed:
+
+- **libvirt/on-disk, always run:** state file exists, libvirt domain is
+  defined, disk/seed-ISO/base-image files exist, and (cross-checked against
+  `<vmname>.state.yaml`) the qcow2's actual virtual size (via
+  `resize_disk_current_gb`, same helper `12_resize_vm.sh` uses), the domain's
+  actual vCPUs/max-memory/autostart flag (via `virsh dominfo`) all match what
+  state.yaml recorded -- catches drift from a partially-applied resize or
+  manual `virsh` edits.
+- **guest, only if the VM is running:** qemu-guest-agent responds
+  (`virsh domifaddr --source agent`), SSH is reachable (Tailscale hostname,
+  else DHCP lease -- reuses `configure_resolve_ssh_host` from
+  `lib/configure_steps.sh`), cloud-init finished (`cloud-init status`
+  reporting `done` *or* `disabled` -- see note below), and, only for
+  whichever of Docker/Tailscale/UFW state.yaml records as actually
+  configured (not `skipped`), that the guest's live state agrees: Docker
+  installed and active, `tailscale0` interface up, UFW active. If the VM
+  isn't running, or is running but unreachable over SSH, these are skipped
+  with a log note rather than failed -- can't inspect a guest you can't
+  reach.
+
+Cloud-init's expected steady state here is `disabled`, not `done`: the last
+`runcmd` step in `setup_config/user-data.tmpl` touches
+`/etc/cloud/cloud-init.disabled` so it never runs again after first boot
+(see "cloud-init only runs once" under `11_configure_vm.sh` below) --
+`06_doctor_vm.sh` accepts either.
+
+For host-level diagnostics not specific to any one VM, see
+`09_doctor_host.sh` instead.
+
+### `scripts/09_doctor_host.sh`
 No vmname argument -- host-level diagnostics. Checks KVM support
 (`kvm-ok`), `libvirtd` is active, the five storage pools exist and are
 correctly permissioned/setgid, and required binaries
@@ -164,7 +203,7 @@ correctly permissioned/setgid, and required binaries
 
 ### `scripts/08_test.sh`
 No vmname argument -- end-to-end smoke test of the whole toolkit against a
-real host. Runs `09_doctor.sh` first and aborts immediately if it fails,
+real host. Runs `09_doctor_host.sh` first and aborts immediately if it fails,
 then exercises the full single-VM lifecycle against two ephemeral test VMs
 (`sandbox-test-auto-$$` via the flag-driven path of `00_init_vm.sh`,
 `sandbox-test-interactive-$$` via `00_init_vm.sh -i` with blank input to

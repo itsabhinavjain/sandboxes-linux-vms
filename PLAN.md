@@ -8,7 +8,6 @@
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
 - [ ] Move from individual yaml state files to a global repositry. Think this through later. Dont waste your time on this. 
-- [x] Script design - Maybe instead of having different scripts for automated and interactive, you can have a same script and send interactive flags. Check the best practices, this might make the code cleaner. -- Done 2026-08-18: `00_init_vm.sh`/`11_configure_vm.sh`/`12_resize_vm.sh` merged into single scripts with `-i`/`--interactive`; see AGENT LOGS below and DECISIONS.md.
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
   - [ ] When making into a CLI tool, you can actually make the tool a little more generic and support other types of sandboxes like - microvms, docker containers etc 
@@ -18,6 +17,48 @@
 
 ## AGENT LOGS 
 Claude and Other Coding Agents can add their log here :- 
+
+### 2026-08-18 (4) -- Claude (Sonnet 5)
+Renamed `09_doctor.sh` -> `09_doctor_host.sh` (it only ever checked the
+host, not any VM -- the name was ambiguous next to the new script below) and
+added `06_doctor_vm.sh`: per-VM diagnostics, filling the "is this VM
+actually configured right" gap `05_status_vm.sh` (dumps info, doesn't judge
+it) and `09_doctor_host.sh` (host-only) both leave open. Checks, in two
+groups (`[PASS]`/`[FAIL]` per check, exit 1 on any failure):
+- libvirt/on-disk (always): state file / domain / disk / seed-ISO / base
+  image all exist; domain's actual vCPUs, max-memory, and autostart (via
+  `virsh dominfo`) and the qcow2's actual virtual size (via
+  `resize_disk_current_gb`, reused from `lib/resize_steps.sh`) all match
+  `state.yaml` -- catches drift from a partial resize or a manual `virsh`
+  edit.
+- guest (only if the VM is running): qemu-guest-agent responds, SSH is
+  reachable (reuses `configure_resolve_ssh_host` from
+  `lib/configure_steps.sh`), cloud-init finished, and -- only for whichever
+  of Docker/Tailscale/UFW `state.yaml` actually recorded as configured, not
+  `skipped` -- that the guest's live state agrees.
+
+Updated `08_test.sh` (Step 1 + its own docstring/usage) to call
+`09_doctor_host.sh`, and `README.md`/`lifecycle.md`/`DECISIONS.md` for both
+the rename and the new script.
+
+Verified end-to-end against this real host, not just `bash -n`: ran
+`09_doctor_host.sh` (19/19 checks passed) and a full `08_test.sh` pass
+(13/13) to confirm the rename didn't break anything downstream. For
+`06_doctor_vm.sh`, ran three throwaway VMs through
+init -> start -> (wait for cloud-init) -> `11_configure_vm.sh
+--skip-tailscale --skip-ufw` -> `06_doctor_vm.sh` -> destroy (all
+self-cleaned, no leftovers). First real run caught an actual bug: the
+cloud-init check only accepted `status: done`, but this repo's
+`user-data.tmpl` touches `/etc/cloud/cloud-init.disabled` as its last
+`runcmd` step (see "cloud-init only runs once" under `11_configure_vm.sh` in
+lifecycle.md), so `cloud-init status` legitimately reports `disabled`, not
+`done`, on any check after first boot -- every run after the VM's first
+boot was a guaranteed false-positive `[FAIL]`. Fixed to accept `done` *or*
+`disabled`; re-ran and got a clean all-`[PASS]` result including live
+Docker/SSH/guest-agent checks. Tailscale/UFW guest-check branches
+themselves are still unverified against a real tailnet -- no
+`TAILSCALE_AUTHKEY` on this host, same caveat as `11_configure_vm.sh`'s
+existing log entries below.
 
 ### 2026-08-18 (3) -- Claude (Sonnet 5)
 End-to-end verification of the automated/interactive merge + `--help` work

@@ -203,8 +203,9 @@ scripts/
   03_reboot_vm.sh
   04_destroy_vm.sh
   05_status_vm.sh
+  06_doctor_vm.sh                 # per-VM diagnostics, see lifecycle.md
   08_test.sh                     # end-to-end smoke test, see lifecycle.md
-  09_doctor.sh
+  09_doctor_host.sh              # host-level diagnostics, see lifecycle.md
   50_list_vms.sh
   51_info_vms.sh
   11_configure_vm.sh             # [-i|--interactive]
