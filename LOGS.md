@@ -77,7 +77,7 @@ Trade-offs:
 │ Revert                  │ virsh snapshot-revert, clean                         │ Needs blockcommit/blockpull or manual XML      │
 │                         │                                                      │ repointing — more fragile in libvirt           │
 ├─────────────────────────┼──────────────────────────────────────────────────────┼────────────────────────────────────────────────┤
-│                         │ Yes — disk_path()/state.yaml/05_destroy_vm.sh all       │ No — the "active disk" changes after every     │
+│                         │ Yes — disk_path()/state.yaml/04_destroy_vm.sh all       │ No — the "active disk" changes after every     │
 │ Fits our scripts        │ assume exactly one qcow2 per VM, unchanged           │ snapshot, which breaks that assumption         │
 │                         │                                                      │ throughout common.sh                           │
 ├─────────────────────────┼──────────────────────────────────────────────────────┼────────────────────────────────────────────────┤

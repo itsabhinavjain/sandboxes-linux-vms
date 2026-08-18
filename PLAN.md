@@ -63,7 +63,7 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    `require_env`'s mandatory list so it doesn't break existing
    `sandbox.sh` configs) or `false` if unset -- chosen so VMs don't
    silently pile up running after every laptop reboot. Recorded in
-   `state.yaml` (`autostart: true|false`) and surfaced in `08_status_vm.sh`,
+   `state.yaml` (`autostart: true|false`) and surfaced in `05_status_vm.sh`,
    `51_info_vms.sh`, `50_list_vms.sh`.
 9. **Tailscale/UFW live in a post-boot configuration script run over SSH
    (currently `11_configure_vm-interactive.sh`), not in `user-data.tmpl`/
@@ -84,7 +84,7 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
    `disk_path()` and every script's one-qcow2-per-VM assumption stays
    valid. External snapshots (new overlay file per snapshot, backed by
    `STORAGE_POOL_SNAPSHOTS`) would require reworking `disk_path()`,
-   `state.yaml`, and `05_destroy_vm.sh` to track a chain of files instead of
+   `state.yaml`, and `04_destroy_vm.sh` to track a chain of files instead of
    one, plus `blockcommit`/`blockpull` for pruning -- more machinery than
    a personal sandbox tool's "snapshot before I break this, revert if it
    goes wrong" use case needs. `STORAGE_POOL_SNAPSHOTS` stays defined but
@@ -149,6 +149,48 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
      re-running it to confirm the idempotency claim above), and that
      `11_configure_vm-interactive.sh` still behaves identically to the old
      `12_configure-manual_vm.sh` now that it sources the shared lib.
+14. **(2026-08-18) `05_destroy_vm.sh` → `04_destroy_vm.sh`, `08_status_vm.sh` →
+   `05_status_vm.sh`; added `08_test.sh`.** Renumbered by request so the
+   single-VM lifecycle scripts (`00`-`05`) run contiguously with no gap, and
+   so slot `08` is free for a new end-to-end smoke test rather than sitting
+   next to `09_doctor.sh` for no reason. `08_test.sh` takes no vmname
+   argument (like `09_doctor.sh`) -- it runs `09_doctor.sh` first and aborts
+   immediately if the host isn't correctly configured, then exercises the
+   full single-VM lifecycle (init via both the automated and interactive
+   paths -> start -> status -> reboot -> stop -> fleet views -> destroy)
+   against ephemeral `sandbox-test-*-$$` VMs it creates and always destroys
+   itself, even on failure (trap-based cleanup, same pattern as
+   `00_init_vm-automated.sh`'s rollback trap). Deliberately does not exercise
+   `11_configure_vm-automated.sh`/`11_configure_vm-interactive.sh` -- those
+   need `TAILSCALE_AUTHKEY` and real network reachability to a tailnet,
+   which is out of scope for a local host smoke test. **Not yet run against
+   a real host** -- syntax-checked with `bash -n` only, same caveat as
+   decision #13.
+15. **(2026-08-18) `08_test.sh` waits for cloud-init to actually finish, not
+   just for `virsh domstate` to say "running".** First real-host run of
+   `08_test.sh` exposed the gap: the original version treated
+   `wait_for_state ... running` (near-instant once the domain boots) as
+   "ready" and immediately moved on to status/reboot/stop, while cloud-init
+   was still mid-provisioning in the background (apt upgrade + Docker
+   install from `setup_config/user-data.tmpl` can take minutes) -- the
+   graceful-stop step then raced that work and had to fall back to
+   `--force`. Fix: after each start, the script polls
+   `virsh domifaddr --source lease` for the VM's DHCP IP on the default NAT
+   network (not `--source agent`, since `qemu-guest-agent` isn't in
+   `user-data.tmpl`'s package list), waits for SSH, then runs
+   `cloud-init status --wait --long` on the guest over SSH and prints the
+   result plus a tail of `/var/log/cloud-init-output.log` -- both so the
+   test genuinely blocks until provisioning is done and so a failed/degraded
+   cloud-init run is visible in the output, which was the other half of the
+   original ask ("display the stuff related to cloud init"). SSH uses
+   `StrictHostKeyChecking=no`/`UserKnownHostsFile=/dev/null` (acceptable
+   here -- these are ephemeral local VMs whose IPs get reused across runs,
+   and nothing is ever written to a known_hosts file) and connects as
+   `abhinav`, per the hardcoded user in `user-data.tmpl`. One retry is built
+   in for a dropped SSH connection, since `user-data.tmpl`'s
+   `package_reboot_if_required: true` can reboot the guest mid-provisioning.
+   **Not yet re-verified against a real host** -- the fix responds to a real
+   observed failure, but hasn't itself been run end-to-end yet.
 
 ## Best practices adopted (vs. previous_scripts/)
 
@@ -165,7 +207,7 @@ on a Linux laptop, replacing the ad-hoc scripts in `previous_scripts/`.
 
 `previous_scripts/create-vm.sh` + `user-data.tmpl` → superseded by
 `00_init_vm-automated.sh` + `01_start_vm.sh` + `setup_config/{user-data,meta-data}.tmpl`.
-`previous_scripts/delete-vm.sh` → superseded by `05_destroy_vm.sh`.
+`previous_scripts/delete-vm.sh` → superseded by `04_destroy_vm.sh`.
 `testing-virtual-machines-{meta-data,user-data}` are just example *rendered
 output* from a prior run, not templates — nothing to port. Verified line by
 line against the new plan (see conversation history / commit message when
@@ -189,8 +231,9 @@ scripts/
   01_start_vm.sh
   02_stop_vm.sh
   03_reboot_vm.sh
-  05_destroy_vm.sh
-  08_status_vm.sh
+  04_destroy_vm.sh
+  05_status_vm.sh
+  08_test.sh                     # see PLAN.md design decision #14
   09_doctor.sh
   50_list_vms.sh
   51_info_vms.sh
@@ -249,16 +292,24 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 - **02_stop_vm.sh `<vmname> [--force]`** — graceful `$VIRSH shutdown`, or
   `$VIRSH destroy` with `--force`; update state.
 - **03_reboot_vm.sh `<vmname>`** — `$VIRSH reboot`; touch state timestamp.
-- **05_destroy_vm.sh `<vmname> [--force]`** — confirm (unless `--force`),
+- **04_destroy_vm.sh `<vmname> [--force]`** — confirm (unless `--force`),
   force-stop if running, `$VIRSH undefine --remove-all-storage --nvram`,
   sweep leftover disk/seed/state files, print the
   `ssh-keygen -R vmname.<tailnet>` reminder.
-- **08_status_vm.sh `<vmname>`** — merge `$VIRSH dominfo` with the state file,
+- **05_status_vm.sh `<vmname>`** — merge `$VIRSH dominfo` with the state file,
   print the Tailscale hostname as the connection hint.
 - **09_doctor.sh** — `kvm-ok`, `libvirtd` active check, pool
   status/permissions (`$VIRSH pool-list`, ownership/setgid check on
   `STORAGE_POOL_*`), required binaries present (`virt-install`,
   `cloud-localds`, `qemu-img`, `yq`).
+- **08_test.sh** — no vmname arg; end-to-end smoke test. Runs `09_doctor.sh`
+  first and aborts on failure, then against ephemeral `sandbox-test-*-$$`
+  VMs (one via `00_init_vm-automated.sh`, one via `00_init_vm-interactive.sh`
+  fed blank input) exercises start -> wait for cloud-init (via SSH,
+  `cloud-init status --wait`) -> status -> reboot -> stop -> fleet-views ->
+  destroy, printing `[PASS]`/`[FAIL]` per step. Trap-based cleanup always
+  destroys any test VM it created, even on failure. See design decisions
+  #14 and #15.
 - **50_list_vms.sh** — scan `STORAGE_POOL_DISKS/*.state.yaml`, cross-reference
   live status from `$VIRSH list --all`, print a table.
 - **51_info_vms.sh** — no vmname arg; loop over all `STORAGE_POOL_DISKS/*.state.yaml`
@@ -285,9 +336,9 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
 
 - **Phase 0 — Foundations.** `lib/common.sh`, `env.sample`,
   `setup_config/*.tmpl`, SETUP.md updates (setgid + yq), `lifecycle.md`.
-- **Phase 1 — Core lifecycle.** `00_init_vm-automated.sh`, `01_start_vm.sh`, `05_destroy_vm.sh`.
+- **Phase 1 — Core lifecycle.** `00_init_vm-automated.sh`, `01_start_vm.sh`, `04_destroy_vm.sh`.
 - **Phase 2 — Rest of single-VM lifecycle.** `02_stop_vm.sh`, `03_reboot_vm.sh`,
-  `08_status_vm.sh`. (`04_resume_vm.sh` was built here too, then deleted
+  `05_status_vm.sh`. (`04_resume_vm.sh` was built here too, then deleted
   2026-08-18 as dead code -- see design decision #13.)
 - **Phase 3 — Fleet view.** `50_list_vms.sh`, `51_info_vms.sh`.
 - **Phase 4 — Diagnostics.** `09_doctor.sh`.
@@ -309,6 +360,10 @@ TAILSCALE_TAILNET, TAILSCALE_AUTHKEY
   execs into `00_init_vm-automated.sh`).
 - **Phase 6 — Deferred.** `21/22` snapshot scripts, once the snapshot-pool
   (internal vs external) question is resolved.
+- **Phase 7 — Smoke test.** `08_test.sh`, added 2026-08-18 alongside the
+  `04`/`05` renumbering -- see design decision #14. First real-host run
+  surfaced the cloud-init-wait gap fixed in design decision #15. Fix not
+  yet re-verified against a real host.
 
 ## Testing steps
 
@@ -329,7 +384,7 @@ Per phase:
   2. `./scripts/01_start_vm.sh sandbox-test-01` — verify domain running
      (`virsh list`), wait ~60-90s, `ssh sandbox-test-01.<tailnet>.ts.net`
      succeeds.
-  3. `./scripts/05_destroy_vm.sh sandbox-test-01` — verify domain undefined,
+  3. `./scripts/04_destroy_vm.sh sandbox-test-01` — verify domain undefined,
      disk/seed/state files removed, `virsh list --all` no longer shows it.
   4. Re-run `00_init_vm-automated.sh` with the same name immediately after to confirm no
      leftover-file conflicts.
@@ -337,7 +392,7 @@ Per phase:
      input to accept every default) produce the same result as step 1.
 - **Phase 2:** For a running test VM, exercise `02_stop_vm.sh` (graceful),
   confirm `virsh list` shows shut off; `01_start_vm.sh` again; `03_reboot_vm.sh`
-  and confirm uptime resets; `02_stop_vm.sh --force`; `08_status_vm.sh` at each
+  and confirm uptime resets; `02_stop_vm.sh --force`; `05_status_vm.sh` at each
   state transition and confirm it reflects reality.
 - **Phase 3:** With 0, 1, and 2+ VMs defined, run `50_list_vms.sh` and confirm
   the table matches `virsh list --all`. Run `51_info_vms.sh` and confirm it
@@ -347,6 +402,12 @@ Per phase:
   and verify it correctly flags a problem when one is deliberately introduced
   (e.g. `libvirtd` stopped).
 - **Phase 5:** Only after Phase 1 + 2 pass, `git rm -r previous_scripts/`.
+- **Phase 7:** Run `08_test.sh` on a correctly bootstrapped host and confirm
+  every step reports `[PASS]`, both `sandbox-test-*-$$` VMs are gone
+  afterward (`virsh list --all`, `50_list_vms.sh`), and that deliberately
+  killing a step midway (e.g. `Ctrl-C` after the VMs are defined) still
+  leaves the host clean -- the trap-based cleanup should destroy whatever
+  was created so far.
 
 ## Testing results (2026-08-16, real host)
 

@@ -8,13 +8,14 @@ Personal bash tooling for creating and managing libvirt/KVM Linux VMs on a singl
 
 ## Never run lifecycle scripts directly
 
-Scripts under `scripts/` (`00_init_vm-automated.sh`, `00_init_vm-interactive.sh`, `01_start_vm.sh` ... `05_destroy_vm.sh`, `11_configure_vm-automated.sh`, `11_configure_vm-interactive.sh`) create/start/stop/destroy real VMs and mutate real libvirt/storage state. Always propose the command and let the user run it — never invoke these yourself. Read-only scripts (`08_status_vm.sh`, `09_doctor.sh`, `50_list_vms.sh`, `51_info_vms.sh`) are fine to run directly. `SETUP.md` (host bootstrap) requires `sudo` and touches shared system state — never run without explicit confirmation.
+Scripts under `scripts/` (`00_init_vm-automated.sh`, `00_init_vm-interactive.sh`, `01_start_vm.sh` ... `04_destroy_vm.sh`, `08_test.sh`, `11_configure_vm-automated.sh`, `11_configure_vm-interactive.sh`) create/start/stop/destroy real VMs and mutate real libvirt/storage state. Always propose the command and let the user run it — never invoke these yourself. `08_test.sh` belongs in this list too even though it's a "test" script: it shells out to the init/start/stop/destroy scripts above against real ephemeral VMs. Read-only scripts (`05_status_vm.sh`, `09_doctor.sh`, `50_list_vms.sh`, `51_info_vms.sh`) are fine to run directly. `SETUP.md` (host bootstrap) requires `sudo` and touches shared system state — never run without explicit confirmation.
 
 ## Script naming convention
 
-- `NN_verb_vm.sh` (00–08): acts on a single VM, takes `<vmname>` as first arg.
+- `NN_verb_vm.sh` (00–05): acts on a single VM, takes `<vmname>` as first arg.
 - `NN_verb_vms.sh` (50+): fleet-wide, acts on all VMs, no vmname arg.
 - `09_doctor.sh`: host-level diagnostics, no vmname.
+- `08_test.sh`: end-to-end smoke test (host diagnostics + full single-VM lifecycle) against real ephemeral test VMs it creates and destroys itself; no vmname arg, like `09_doctor.sh`.
 - Scripts with both a non-interactive and an interactive variant share the same number and carry a `-automated`/`-interactive` suffix after `_vm` to distinguish them (e.g. `00_init_vm-automated.sh` / `00_init_vm-interactive.sh`, `11_configure_vm-automated.sh` / `11_configure_vm-interactive.sh`). Use "interactive", not "manual".
 - `11` reserved for configuration scripts (`12` is free); `21`/`22` reserved (not yet built) for snapshot scripts.
 - VM names should look like `vir-ubuntu-01` (human convention only — `validate_vmname()` in `scripts/lib/common.sh` just enforces `^[a-zA-Z0-9_-]+$`).

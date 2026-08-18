@@ -37,7 +37,7 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 ## Scripts 
 - See [lifecycle.md](./lifecycle.md) for the full contract of each script.
 - All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm-automated.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
-- Naming convention: scripts that operate on a single VM (`<vmname>` as the first argument) are numbered `00`-`08` and suffixed `_vm.sh`. Scripts that operate across all VMs on the host are numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level (no VM involved at all), so it carries neither suffix. Scripts that have both a non-interactive and an interactive variant carry a `-automated`/`-interactive` suffix after `_vm` (e.g. `00_init_vm-automated.sh` / `00_init_vm-interactive.sh`).
+- Naming convention: scripts that operate on a single VM (`<vmname>` as the first argument) are numbered `00`-`05` and suffixed `_vm.sh`. Scripts that operate across all VMs on the host are numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level (no VM involved at all), so it carries neither suffix. `08_test.sh` is likewise host-level -- an end-to-end smoke test that creates and destroys its own ephemeral test VMs, so it takes no vmname argument either. Scripts that have both a non-interactive and an interactive variant carry a `-automated`/`-interactive` suffix after `_vm` (e.g. `00_init_vm-automated.sh` / `00_init_vm-interactive.sh`).
 
 ### Sandbox Lifecycle Scripts 
 - Init (choose one)
@@ -46,9 +46,10 @@ export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
 - `scripts/01_start_vm.sh`             # Starts the VM 
 - `scripts/02_stop_vm.sh`
 - `scripts/03_reboot_vm.sh`
-- `scripts/05_destroy_vm.sh`
-- `scripts/08_status_vm.sh`            # Gives the status and info 
+- `scripts/04_destroy_vm.sh`
+- `scripts/05_status_vm.sh`            # Gives the status and info 
 - `scripts/09_doctor.sh`               # Runs diagnostic tests 
+- `scripts/08_test.sh`                 # End-to-end smoke test: doctor -> init -> lifecycle -> destroy, against ephemeral test VMs
 - Configuration (choose one)
     - `scripts/11_configure_vm-automated.sh`    # Fire-and-forget: runs every step unconditionally, no prompts
     - `scripts/11_configure_vm-interactive.sh`  # Confirms before each step, streams output live

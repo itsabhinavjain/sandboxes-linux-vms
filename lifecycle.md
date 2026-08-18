@@ -6,11 +6,13 @@ first argument unless noted, and sources `scripts/lib/common.sh`. None
 require `sudo` (see SETUP.md / PLAN.md for why). State is tracked per-VM in
 `${STORAGE_POOL_DISKS}/<vmname>.state.yaml`.
 
-Naming convention: single-VM scripts are numbered `00`-`08` and suffixed
+Naming convention: single-VM scripts are numbered `00`-`05` and suffixed
 `_vm.sh`; fleet-wide scripts (operate across all VMs on the host) are
 numbered `50`+ and suffixed `_vms.sh`. `09_doctor.sh` is host-level
-diagnostics with no VM involved, so it carries neither suffix. Scripts that
-have both a non-interactive and an interactive variant carry a
+diagnostics with no VM involved, so it carries neither suffix. `08_test.sh`
+is likewise host-level -- an end-to-end smoke test that creates and destroys
+its own ephemeral test VMs -- so it takes no vmname argument either. Scripts
+that have both a non-interactive and an interactive variant carry a
 `-automated`/`-interactive` suffix after `_vm` (e.g. `00_init_vm-automated.sh`
 / `00_init_vm-interactive.sh`).
 
@@ -55,13 +57,13 @@ instead. Updates state to `status: stopped`.
 ### `scripts/03_reboot_vm.sh <vmname>`
 Reboots a running VM in place.
 
-### `scripts/05_destroy_vm.sh <vmname> [--force]`
+### `scripts/04_destroy_vm.sh <vmname> [--force]`
 Permanently deletes the VM: force-stops if running, undefines the libvirt
 domain and its storage, removes the qcow2/seed/state files, and prints a
 reminder to run `ssh-keygen -R <vmname>.<tailnet>` on any machine that has
 SSH'd into it. Prompts for confirmation unless `--force` is given.
 
-### `scripts/08_status_vm.sh <vmname>`
+### `scripts/05_status_vm.sh <vmname>`
 Shows `virsh dominfo` merged with the state file contents, plus the
 Tailscale SSH hint (`<vmname>.<tailnet>.ts.net`).
 
@@ -70,6 +72,40 @@ No vmname argument -- host-level diagnostics. Checks KVM support
 (`kvm-ok`), `libvirtd` is active, the five storage pools exist and are
 correctly permissioned/setgid, and required binaries
 (`virt-install`, `cloud-localds`, `qemu-img`, `yq`) are present.
+
+### `scripts/08_test.sh`
+No vmname argument -- end-to-end smoke test of the whole toolkit against a
+real host. Runs `09_doctor.sh` first and aborts immediately if it fails,
+then exercises the full single-VM lifecycle against two ephemeral test VMs
+(`sandbox-test-auto-$$` via `00_init_vm-automated.sh`,
+`sandbox-test-interactive-$$` via `00_init_vm-interactive.sh` with blank
+input to accept every default): init -> start -> **wait for cloud-init to
+actually finish provisioning** -> status -> reboot -> graceful stop -> fleet
+views (`50_list_vms.sh`/`51_info_vms.sh`) -> destroy. Prints `[PASS]`/`[FAIL]`
+per step and exits non-zero if anything failed. Always destroys every test
+VM it created, even on failure (trap-based cleanup), so a failed run doesn't
+leave VMs behind on the host.
+
+After each start, rather than treating "libvirt says it's running" as
+ready, the script polls the default NAT network's dnsmasq lease file
+(`virsh domifaddr --source lease`) for an IP, waits for SSH, then runs
+`cloud-init status --wait --long` on the guest over SSH so the test actually
+blocks until provisioning (the `packages`/`runcmd` block in
+`setup_config/user-data.tmpl` -- apt upgrade, Docker install, etc.) is done,
+instead of racing it. Prints the cloud-init status output plus a
+40-line tail of `/var/log/cloud-init-output.log` either way, so a
+failed/degraded run is visible in the test output. Retries the wait once if
+the SSH connection drops mid-provisioning (`package_reboot_if_required:
+true` in `user-data.tmpl` can trigger a mid-provisioning reboot). SSH uses
+`StrictHostKeyChecking=no`/`UserKnownHostsFile=/dev/null` (safe here since
+these are freshly-created local VMs whose IPs get reused across runs) and
+connects as `abhinav`, the user hardcoded into `user-data.tmpl`. Timeouts
+are overridable via `IP_WAIT_TIMEOUT`, `SSH_WAIT_TIMEOUT`, and
+`CLOUDINIT_WAIT_TIMEOUT` env vars (defaults 90s/60s/900s).
+
+Does not exercise `11_configure_vm-automated.sh`/`11_configure_vm-interactive.sh`
+(those need `TAILSCALE_AUTHKEY` and real network reachability to a tailnet,
+out of scope for a local smoke test).
 
 ## Configuration
 
@@ -123,4 +159,4 @@ Scans `STORAGE_POOL_DISKS/*.state.yaml`, cross-references live status from
 Prints the full state file contents and the Tailscale SSH hint for every
 managed VM (no `<vmname>` argument -- loops over all `*.state.yaml` files in
 `STORAGE_POOL_DISKS`, same as `50_list_vms.sh`). For a single VM's detail
-plus its full `virsh dominfo`, use `08_status_vm.sh <vmname>` instead.
+plus its full `virsh dominfo`, use `05_status_vm.sh <vmname>` instead.

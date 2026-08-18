@@ -3,7 +3,7 @@
 #
 # Dumps the full state.yaml fields plus live libvirt domstate and the
 # Tailscale SSH hint (if TAILSCALE_TAILNET is set) for every managed VM.
-# For a single VM's info plus its full `virsh dominfo`, see 08_status_vm.sh.
+# For a single VM's info plus its full `virsh dominfo`, see 05_status_vm.sh.
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 require_env
 

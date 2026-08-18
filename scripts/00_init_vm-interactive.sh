@@ -53,7 +53,7 @@ while [[ -z "$VMNAME" ]]; do
         continue
     fi
     if vm_exists "$VMNAME" || [[ -f "$(state_path "$VMNAME")" ]]; then
-        echo "VM '$VMNAME' already exists. Run scripts/05_destroy_vm.sh $VMNAME first if you want to recreate it." >&2
+        echo "VM '$VMNAME' already exists. Run scripts/04_destroy_vm.sh $VMNAME first if you want to recreate it." >&2
         VMNAME=""
     fi
 done
