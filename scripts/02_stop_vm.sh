@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/02_stop_vm.sh <vmname> [--force]
+# Usage: ./scripts/02_stop_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 USAGE=$(cat <<EOF
@@ -7,7 +7,7 @@ NAME
     02_stop_vm.sh -- stop a running VM
 
 USAGE
-    scripts/02_stop_vm.sh <vmname> [--force]
+    ./scripts/02_stop_vm.sh <vmname> [--force]
 
 REQUIRED
     <vmname>    VM name of an already-defined VM
@@ -23,7 +23,7 @@ EOF
 show_help_if_requested "$USAGE" "$@"
 require_env
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/02_stop_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/02_stop_vm.sh --help' for usage.}"
 shift
 
 FORCE_STOP=0

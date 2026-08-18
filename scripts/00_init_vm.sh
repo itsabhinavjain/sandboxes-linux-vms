@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/00_init_vm.sh <vmname> [-i|--interactive] [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
+# Usage: ./scripts/00_init_vm.sh <vmname> [-i|--interactive] [--ram MB] [--vcpus N] [--disk GB] [--image NAME] [--os-variant VARIANT] [--autostart|--no-autostart]
 #
 # Defines a new VM without starting it: creates a qcow2 overlay disk backed
 # by the base cloud image, builds a cloud-init seed ISO, and `virsh define`s
@@ -17,7 +17,7 @@ NAME
     00_init_vm.sh -- define a new VM (qcow2 overlay disk + cloud-init seed ISO + libvirt domain)
 
 USAGE
-    scripts/00_init_vm.sh <vmname> [-i|--interactive] [options]
+    ./scripts/00_init_vm.sh <vmname> [-i|--interactive] [options]
 
     Defines the VM only -- it is not started. Run 01_start_vm.sh afterwards.
     Fails if a VM with the same name already exists (in libvirt or as a
@@ -52,8 +52,8 @@ VALUE PRECEDENCE
     system env < .env (repo root) < explicit flag. See README.md.
 
 EXAMPLES
-    scripts/00_init_vm.sh myvm --ram 4096 --vcpus 4
-    scripts/00_init_vm.sh myvm -i
+    ./scripts/00_init_vm.sh myvm --ram 4096 --vcpus 4
+    ./scripts/00_init_vm.sh myvm -i
 EOF
 )
 show_help_if_requested "$USAGE" "$@"
@@ -65,7 +65,7 @@ check_bin cloud-localds
 check_bin envsubst
 check_bin yq
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/00_init_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/00_init_vm.sh --help' for usage.}"
 shift
 
 INTERACTIVE=0
@@ -104,7 +104,7 @@ validate_vmname "$VMNAME"
 [[ -d "$STORAGE_POOL_CLOUD_INIT_ISOS" ]] || die "STORAGE_POOL_CLOUD_INIT_ISOS ($STORAGE_POOL_CLOUD_INIT_ISOS) does not exist -- run the SETUP.md bootstrap first."
 
 if vm_exists "$VMNAME" || [[ -f "$(state_path "$VMNAME")" ]]; then
-    die "VM '$VMNAME' already exists. Run scripts/04_destroy_vm.sh $VMNAME first if you want to recreate it."
+    die "VM '$VMNAME' already exists. Run ./scripts/04_destroy_vm.sh $VMNAME first if you want to recreate it."
 fi
 
 if [[ "$INTERACTIVE" == "1" ]]; then
@@ -184,4 +184,4 @@ fi
 
 state_set "$VMNAME" .status "defined"
 
-log "VM '$VMNAME' defined (not started). Run: scripts/01_start_vm.sh $VMNAME"
+log "VM '$VMNAME' defined (not started). Run: ./scripts/01_start_vm.sh $VMNAME"

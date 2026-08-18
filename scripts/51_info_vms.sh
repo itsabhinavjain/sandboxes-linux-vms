@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/51_info_vms.sh
+# Usage: ./scripts/51_info_vms.sh
 #
 # Dumps the full state.yaml fields plus live libvirt domstate and the
 # Tailscale SSH hint (if TAILSCALE_TAILNET is set) for every managed VM.
@@ -11,7 +11,7 @@ NAME
     51_info_vms.sh -- full state.yaml + live status + SSH hint for every managed VM
 
 USAGE
-    scripts/51_info_vms.sh
+    ./scripts/51_info_vms.sh
 
     No arguments. Loops over every STORAGE_POOL_DISKS/*.state.yaml file. For
     a single VM's detail plus its full 'virsh dominfo', see 05_status_vm.sh

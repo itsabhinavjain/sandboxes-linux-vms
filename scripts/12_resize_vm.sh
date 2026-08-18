@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Usage: scripts/12_resize_vm.sh <vmname> [-i|--interactive] [--ram MB] [--vcpus N] [--disk GB] [--autostart|--no-autostart] [--force]
+# Usage: ./scripts/12_resize_vm.sh <vmname> [-i|--interactive] [--ram MB] [--vcpus N] [--disk GB] [--autostart|--no-autostart] [--force]
 #
 # Edits an existing VM's shape (RAM, vCPUs, disk, autostart) via
-# scripts/lib/resize_steps.sh. Every field is optional -- only fields
+# ./scripts/lib/resize_steps.sh. Every field is optional -- only fields
 # actually given (as a flag, or answered at a prompt) change; the rest are
 # left as-is. Prints current vs. requested config before doing anything, and
 # exits cleanly with no changes if nothing differs.
@@ -32,7 +32,7 @@ NAME
     12_resize_vm.sh -- change an existing VM's RAM, vCPUs, disk size, or autostart
 
 USAGE
-    scripts/12_resize_vm.sh <vmname> [-i|--interactive] [options]
+    ./scripts/12_resize_vm.sh <vmname> [-i|--interactive] [options]
 
     Only the fields you pass (or answer at a prompt, in -i mode) change --
     everything else is left as-is. Disk resize is grow-only.
@@ -61,8 +61,8 @@ OPTIONS
         Show this help and exit
 
 EXAMPLES
-    scripts/12_resize_vm.sh myvm --ram 4096
-    scripts/12_resize_vm.sh myvm -i
+    ./scripts/12_resize_vm.sh myvm --ram 4096
+    ./scripts/12_resize_vm.sh myvm -i
 EOF
 )
 show_help_if_requested "$USAGE" "$@"
@@ -71,7 +71,7 @@ require_env
 check_bin qemu-img
 check_bin yq
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/12_resize_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/12_resize_vm.sh --help' for usage.}"
 shift
 
 INTERACTIVE=0
@@ -97,7 +97,7 @@ done
 
 validate_vmname "$VMNAME"
 
-[[ -f "$(state_path "$VMNAME")" ]] || die "No state file for '$VMNAME' -- run scripts/00_init_vm.sh $VMNAME first."
+[[ -f "$(state_path "$VMNAME")" ]] || die "No state file for '$VMNAME' -- run ./scripts/00_init_vm.sh $VMNAME first."
 vm_exists "$VMNAME" || die "VM '$VMNAME' is not defined in libvirt."
 
 CUR_RAM="$(state_get "$VMNAME" .ram_mb)"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/05_status_vm.sh <vmname>
+# Usage: ./scripts/05_status_vm.sh <vmname>
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 USAGE=$(cat <<EOF
@@ -7,7 +7,7 @@ NAME
     05_status_vm.sh -- show a single VM's libvirt domain info + state.yaml + SSH hint
 
 USAGE
-    scripts/05_status_vm.sh <vmname>
+    ./scripts/05_status_vm.sh <vmname>
 
 REQUIRED
     <vmname>    VM name
@@ -21,7 +21,7 @@ EOF
 show_help_if_requested "$USAGE" "$@"
 require_env
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/05_status_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/05_status_vm.sh --help' for usage.}"
 validate_vmname "$VMNAME"
 
 STATE_PATH="$(state_path "$VMNAME")"

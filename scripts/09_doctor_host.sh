@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/09_doctor_host.sh
+# Usage: ./scripts/09_doctor_host.sh
 #
 # Host-level diagnostics: KVM support, libvirtd status, required binaries,
 # storage pool definitions/state, storage directory setgid bits, and virsh
@@ -17,7 +17,7 @@ NAME
     09_doctor_host.sh -- host-level diagnostics for the sandbox toolkit
 
 USAGE
-    scripts/09_doctor_host.sh
+    ./scripts/09_doctor_host.sh
 
     No arguments. Checks KVM support, libvirtd status, required binaries,
     the five storage pools, and setgid bits on their directories. Prints

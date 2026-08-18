@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/06_doctor_vm.sh <vmname>
+# Usage: ./scripts/06_doctor_vm.sh <vmname>
 #
 # Per-VM diagnostics: cross-checks the libvirt domain and on-disk files
 # against <vmname>.state.yaml (disk/seed/base-image presence, RAM/vCPU/
@@ -20,7 +20,7 @@ NAME
     06_doctor_vm.sh -- per-VM diagnostics for the sandbox toolkit
 
 USAGE
-    scripts/06_doctor_vm.sh <vmname>
+    ./scripts/06_doctor_vm.sh <vmname>
 
     Checks the libvirt domain, disk/seed/base-image files, and RAM/vCPU/
     autostart/disk-size against <vmname>.state.yaml. If the VM is running
@@ -44,7 +44,7 @@ require_env
 check_bin ssh
 check_bin qemu-img
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/06_doctor_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/06_doctor_vm.sh --help' for usage.}"
 validate_vmname "$VMNAME"
 
 FAILURES=0
@@ -149,7 +149,7 @@ echo ""
 echo "=== $VMNAME: guest checks (require the VM running + reachable over SSH) ==="
 
 if [[ "$HAVE_DOMAIN" != "1" ]] || ! vm_is_running "$VMNAME"; then
-    log "VM '$VMNAME' is not running -- skipping guest checks (start it with scripts/01_start_vm.sh)."
+    log "VM '$VMNAME' is not running -- skipping guest checks (start it with ./scripts/01_start_vm.sh)."
 else
     if "${VIRSH[@]}" domifaddr "$VMNAME" --source agent >/dev/null 2>&1; then
         pass "qemu-guest-agent is responding"

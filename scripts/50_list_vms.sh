@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/50_list_vms.sh
+# Usage: ./scripts/50_list_vms.sh
 #
 # Scans STORAGE_POOL_DISKS for all managed VM state files and prints a table
 # cross-referencing state.yaml (authoritative resource config) against live
@@ -11,7 +11,7 @@ NAME
     50_list_vms.sh -- table of all managed VMs (name, live state, autostart, shape)
 
 USAGE
-    scripts/50_list_vms.sh
+    ./scripts/50_list_vms.sh
 
     No arguments. Scans STORAGE_POOL_DISKS/*.state.yaml and cross-references
     live status from 'virsh list --all'. For full per-VM detail, see

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/08_test.sh
+# Usage: ./scripts/08_test.sh
 #
 # End-to-end smoke test of the sandbox lifecycle tooling against a real
 # libvirt host. Runs 09_doctor_host.sh first (aborts immediately if the host
@@ -17,7 +17,7 @@ NAME
     08_test.sh -- end-to-end smoke test against a real libvirt host
 
 USAGE
-    scripts/08_test.sh
+    ./scripts/08_test.sh
 
     No arguments. Runs 09_doctor_host.sh first (aborts immediately if it fails),
     then exercises the full single-VM lifecycle -- init (both the flag-driven

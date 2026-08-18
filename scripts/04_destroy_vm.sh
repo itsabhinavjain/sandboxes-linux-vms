@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: scripts/04_destroy_vm.sh <vmname> [--force]
+# Usage: ./scripts/04_destroy_vm.sh <vmname> [--force]
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/tailscale_api.sh"
 
@@ -8,7 +8,7 @@ NAME
     04_destroy_vm.sh -- permanently delete a VM
 
 USAGE
-    scripts/04_destroy_vm.sh <vmname> [--force]
+    ./scripts/04_destroy_vm.sh <vmname> [--force]
 
     Force-stops the VM if running, undefines the libvirt domain and its
     storage, and removes the qcow2/seed/state files. If
@@ -28,7 +28,7 @@ EOF
 show_help_if_requested "$USAGE" "$@"
 require_env
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/04_destroy_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/04_destroy_vm.sh --help' for usage.}"
 shift
 
 FORCE=0

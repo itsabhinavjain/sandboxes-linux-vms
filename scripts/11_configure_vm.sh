@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Usage: scripts/11_configure_vm.sh <vmname> [-i|--interactive] [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]
+# Usage: ./scripts/11_configure_vm.sh <vmname> [-i|--interactive] [--skip-tailscale] [--skip-ufw] [--skip-docker] [--authkey KEY]
 #
 # Joins a running VM to the tailnet, locks UFW down to tailscale0-only, and
 # installs Docker -- over SSH, using the shared step machinery in
-# scripts/lib/configure_steps.sh. Idempotent -- each remote step already
+# ./scripts/lib/configure_steps.sh. Idempotent -- each remote step already
 # no-ops safely on a re-run, so this is also how you change network/firewall
 # config or install/update Docker on an existing VM (cloud-init only runs
 # once, see DECISIONS.md).
@@ -27,9 +27,9 @@ NAME
     11_configure_vm.sh -- join a running VM to the tailnet, lock down UFW, install Docker
 
 USAGE
-    scripts/11_configure_vm.sh <vmname> [-i|--interactive] [options]
+    ./scripts/11_configure_vm.sh <vmname> [-i|--interactive] [options]
 
-    VM must already be running (scripts/01_start_vm.sh). Reaches it over SSH
+    VM must already be running (./scripts/01_start_vm.sh). Reaches it over SSH
     as the 'abhinav' user, via its Tailscale hostname if already joined,
     else its NAT/DHCP lease address. Re-runnable/idempotent.
 
@@ -58,8 +58,8 @@ NOTES
     short of --skip-ufw.
 
 EXAMPLES
-    scripts/11_configure_vm.sh myvm
-    scripts/11_configure_vm.sh myvm -i --skip-docker
+    ./scripts/11_configure_vm.sh myvm
+    ./scripts/11_configure_vm.sh myvm -i --skip-docker
 EOF
 )
 show_help_if_requested "$USAGE" "$@"
@@ -67,7 +67,7 @@ show_help_if_requested "$USAGE" "$@"
 require_env
 check_bin ssh
 
-VMNAME="${1:?Missing <vmname>. Run 'scripts/11_configure_vm.sh --help' for usage.}"
+VMNAME="${1:?Missing <vmname>. Run './scripts/11_configure_vm.sh --help' for usage.}"
 shift
 
 INTERACTIVE=0
@@ -91,8 +91,8 @@ done
 validate_vmname "$VMNAME"
 
 STATE_PATH="$(state_path "$VMNAME")"
-[[ -f "$STATE_PATH" ]] || die "No state file for '$VMNAME' -- run scripts/00_init_vm.sh $VMNAME first."
-vm_is_running "$VMNAME" || die "VM '$VMNAME' is not running -- run scripts/01_start_vm.sh $VMNAME first."
+[[ -f "$STATE_PATH" ]] || die "No state file for '$VMNAME' -- run ./scripts/00_init_vm.sh $VMNAME first."
+vm_is_running "$VMNAME" || die "VM '$VMNAME' is not running -- run ./scripts/01_start_vm.sh $VMNAME first."
 
 if [[ "$DO_TAILSCALE" == "1" && -z "$AUTHKEY" ]]; then
     die "TAILSCALE_AUTHKEY not set (.env) and no --authkey given. Generate a reusable/ephemeral key at https://login.tailscale.com/admin/settings/keys, or pass --skip-tailscale."
