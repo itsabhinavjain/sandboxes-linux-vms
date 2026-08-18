@@ -98,13 +98,12 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 ```
 
 ## Notes 
-- Naming convention of virtual machines : 
-    - `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
+- Naming convention of virtual machines : `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
 
 ## References
 - Usage 
     - [Linux host setup](./SETUP.md) 
-    - [Lifecycle scripts](./lifecycle.md)
+    - [Lifecycle scripts](./lifecycle.md) : Note that this contains a "Common Usage Patterns" sections and also details all the lifecycle scripts. 
 - Development 
     - [Implmentation Plan, Roadmap and Implentation Logs](./PLAN.md) : Mentions the various additional things that I can implement in this repo 
     - [Design Decisions and Policies](./DECISIONS.md)

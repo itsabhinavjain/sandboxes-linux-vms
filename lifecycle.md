@@ -60,23 +60,23 @@ script's own section further down, or its `--help`, for the full flag list.
 ```
 ./scripts/00_init_vm.sh myvm
 ./scripts/01_start_vm.sh myvm
-./scripts/11_configure_vm.sh myvm   # needs TAILSCALE_AUTHKEY in .env, or pass --authkey
+./scripts/11_configure_vm.sh myvm     # needs TAILSCALE_AUTHKEY in .env, or pass --authkey
 ```
 
 **Check on a VM, or on everything:**
 ```
-./scripts/05_status_vm.sh myvm      # one VM, full detail
-./scripts/06_doctor_vm.sh myvm      # one VM, diagnostics (is it properly configured?)
-./scripts/50_list_vms.sh            # every VM, one-line-per-VM table
-./scripts/51_info_vms.sh            # every VM, full detail
+./scripts/05_status_vm.sh myvm        # one VM, full detail
+./scripts/06_doctor_vm.sh myvm        # one VM, diagnostics (is it properly configured?)
+./scripts/50_list_vms.sh              # every VM, one-line-per-VM table
+./scripts/51_info_vms.sh              # every VM, full detail
 ```
 
 **Day-to-day power control:**
 ```
-./scripts/02_stop_vm.sh myvm        # graceful shutdown
+./scripts/02_stop_vm.sh myvm          # graceful shutdown
 ./scripts/02_stop_vm.sh myvm --force  # hard power off, if it won't shut down
 ./scripts/03_reboot_vm.sh myvm
-./scripts/01_start_vm.sh myvm       # start it back up
+./scripts/01_start_vm.sh myvm         # start it back up
 ```
 
 **Change a VM's RAM/vCPUs/disk/autostart:**

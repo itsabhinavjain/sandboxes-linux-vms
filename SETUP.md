@@ -229,4 +229,3 @@ TAILSCALE_AUTHKEY="tskey-auth-..."
 TAILSCALE_API_CLIENT_ID="..."
 TAILSCALE_API_CLIENT_SECRET="..."
 
-Your call on which way you'd rather hand them over.

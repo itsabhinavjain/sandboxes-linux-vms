@@ -1,13 +1,10 @@
 ## ROADMAP 
 ## Things to implement 
-- [ ] Check the networking using Tailscale. See if you want to do it automatically or have a manual setup 
-- [ ] Check if the networking has been setup as per the design decisions that I have taken 
-- [ ] Check using the vms - how will you ssh into the machines etc 
 - [ ] user-data customization. Can ask to specify the user instead of hardcoded to `abhinav`. this can also be controlled from an environment variable. 
 
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
-- [ ] Move from individual yaml state files to a global repositry. Think this through later. Dont waste your time on this. 
+- [ ] Move from individual yaml state files to a global repository. Think this through later. Dont waste your time on this. 
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
   - [ ] When making into a CLI tool, you can actually make the tool a little more generic and support other types of sandboxes like - microvms, docker containers etc 
