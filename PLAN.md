@@ -8,6 +8,12 @@
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
 - [ ] Move from individual yaml state files to a global repository. Think this through later. Dont waste your time on this. 
+- VM  
+  - [ ] Portability to VMs from one linux host to another. Can we just copy the files or do we have to do some setup of Libvirt etc 
+  - [ ] Connectivity - either through various types of vms or by configuring a particular VM 
+    - [ ] What if we want to have a GUI - Some GUI server running. What if we want to see changes in the gui to be streamed, the changes can be through cli or agent or computer use agent 
+    - [ ] Being able to access the filesystem - samba server or something else  
+- Check if we can manage using Cockpit - a GUI based control center 
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
   - [ ] When making into a CLI tool, you can actually make the tool a little more generic and support other types of sandboxes like - microvms, docker containers etc 
