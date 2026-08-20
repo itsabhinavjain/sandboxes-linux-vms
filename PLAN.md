@@ -10,9 +10,21 @@
 - [ ] Move from individual yaml state files to a global repository. Think this through later. Dont waste your time on this. 
 - VM  
   - [ ] Portability to VMs from one linux host to another. Can we just copy the files or do we have to do some setup of Libvirt etc 
+    - Note : This is possible. You would need all the files - seed-iso, qcow2 and also the definition xml file. You might have to make some changes to the xml file based on the folder structure of the new linux host machine. 
   - [ ] Connectivity - either through various types of vms or by configuring a particular VM 
-    - [ ] What if we want to have a GUI - Some GUI server running. What if we want to see changes in the gui to be streamed, the changes can be through cli or agent or computer use agent 
-    - [ ] Being able to access the filesystem - samba server or something else  
+    - [ ] What if we want to have a GUI (rather than a pur server mode) - Some GUI server running. What if we want to see changes in the gui to be streamed, the changes can be through cli or agent or computer use agent 
+      - Having GUI - Being able to use the VM as a human but using GUI. Virtual computer (I want to see/ control the VM)
+      - Having "AI operated computer" (I want AI to operate the VM - maybe collaboratively.) - The agent can be on the vm or on my mac machine. Computer use infra.  
+      - Working an a agent computer - Sharing the same screen (One or multiple AI agents)
+        - Additionally can have something like grok bot where the computer is the same, but multiple agents work on that computer with their own screen. You can get access to the browser to be able to add your credentials to the browser. (Something like grok computer or perplexity computer)
+      - Notes : 
+        - Can have various protocols - VNC, RDP etc
+        - Something to research - OpenHands, KASM workspaces, virt-viewer / QEMU display, RDP - (Ubuntu - XFCE, WRDP ; Macbook - RDP, XFCE, Chrome), noVNC, Apache Guacamole
+    - [ ] Being able to access the filesystem 
+      - Samba server 
+      - Object storage 
+      - FTP server  
+      - File server using http etc 
 - Check if we can manage using Cockpit - a GUI based control center 
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
