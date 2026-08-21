@@ -38,6 +38,194 @@
 ## AGENT LOGS 
 Claude and Other Coding Agents can add their log here :- 
 
+### 2026-08-21 -- Claude (Sonnet 5)
+Implemented `scripts/84_host_change_libvirt_storage_pools.sh` (previously a
+stub with just TODO comments), the "edit storage pools" script SETUP.md
+already linked to. Host-level admin script (sudo throughout, same style as
+`81`/`83`), not a lifecycle script -- takes a required `<new-libvirt-home>`
+positional arg plus `-y/--force`, `--dry-run`, `--purge-old`, `-h/--help`.
+
+Design points worth recording:
+- **VM discovery is scoped to this toolkit's own state files**
+  (`STORAGE_POOL_DISKS/*.state.yaml`, same pattern `50_list_vms.sh` uses),
+  not `virsh list --all` -- so any other libvirt domain on the host that
+  this repo doesn't manage is never stopped, edited, or restarted.
+- **Two migration hazards specific to this repo's disk model, both
+  handled**: (1) a VM's qcow2 overlay embeds its base image's *absolute
+  path* in its own metadata (`qemu-img create -F qcow2 -b "$BASE_IMAGE"` in
+  `00_init_vm.sh`) -- moving the images pool alone would silently break
+  every overlay's backing-file pointer, so this script runs
+  `qemu-img rebase -u` on each managed VM's disk after the move. (2) the
+  libvirt domain XML itself hardcodes absolute `<source file='...'/>` paths
+  for both the qcow2 disk and the cloud-init seed ISO (`virt-install --disk
+  path=...`, not pool/volume-relative) -- so each managed domain is
+  `dumpxml`'d, path-substituted, and `define`'d again against the new
+  location.
+- **Old data is kept by default**, not deleted -- `rsync` verifies file
+  counts per pool before anything old is touched, and actual deletion only
+  happens with the explicit `--purge-old` flag, after every other step
+  (pools redefined, VMs updated, VMs restarted) has already succeeded.
+- Rewrites `/etc/profile.d/sandbox.sh` (backed up first) with a static
+  `LIBVIRT_HOME="$NEW_LIBVIRT_HOME"`, deliberately dropping the
+  mountpoint-conditional (`STORAGE_POOL_HOME` / `mountpoint -q
+  /mnt/extreme_ssd`) pattern from `82_host_setup_bootstrap_script.sh` in
+  favor of a fixed path, since running this script at all is the user
+  making an explicit, one-time choice of new location. Also patches any
+  `LIBVIRT_HOME`/`STORAGE_POOL_*` override lines found in this repo's
+  `.env` (backed up first, and only those specific var-name lines are
+  touched/logged -- never the full file, since `.env` can hold secrets).
+
+Verified in this session: `bash -n` and `shellcheck` clean (0 warnings),
+`--help` works with zero environment configured (checked before
+`require_env`, matching every other script's convention), missing-arg /
+same-path / nested-path / unknown-flag / relative-path rejections all
+produce the expected `ERROR:` and exit 1, and argument-sanity checks
+(same-path, nested-path) were deliberately ordered *before* the `sudo
+virsh uri` connectivity check so a plain input mistake doesn't require a
+working libvirt connection to be caught. Not exercised end-to-end in this
+part of the session -- this dev sandbox has no `libvirtd`/passwordless
+sudo, so the pipeline itself was syntax/logic-reviewed only at this point.
+
+**Update, same day -- end-to-end verified against the user's real host.**
+This coding sandbox has no libvirt/passwordless sudo, so the user ran the
+actual migration themselves in their own terminal while I drove: `09_doctor_host.sh`
+(19/19 pass) -> full `08_test.sh` (13/13 steps, clean) -> created a real
+running VM (`migration-test-vm`) -> `84_host_change_libvirt_storage_pools.sh
+/home/abhinav/libvirt-migration-test --dry-run` (plan looked correct) -> the
+real run, migrating across an actual filesystem boundary (`/Data` ext4 ->
+`/home` ext4, a different block device).
+
+**Found and fixed a real bug on the first live attempt**: `virsh
+pool-is-active <pool>` is not a real virsh subcommand (`error: unknown
+command`, exit 1) -- every `if sudo virsh pool-is-active ...` guard in the
+script (the pool-deactivation loop, and twice inside `ensure_pool()`)
+therefore always evaluated as "not active," so `pool-destroy` was silently
+skipped everywhere it gated one, and `pool-undefine` was attempted against
+a still-active `default` pool, which errored and (correctly, under
+`set -e`) aborted the script. Confirmed the host was left in a safe
+partial state at that point (rsync copy to the new location already
+verified for all 5 pools, but old pools/domain untouched) before making any
+fix. Replaced all three guarded calls with unconditional attempts wrapped
+in `|| true` (destroying/starting a pool that's already in that state just
+errors harmlessly) -- there is no real `-is-active` predicate for storage
+pools to check against, so this is the correct fix, not a workaround.
+Re-verified `bash -n`/`shellcheck` clean, then had the user re-run the
+identical command -- this time it completed cleanly through pool redefine,
+per-VM `qemu-img rebase -u` (confirmed via `qemu-img info` that the new
+qcow2's backing file now points at the new images path, while the
+untouched old qcow2 at `/Data/libvirt` still points at the old one --
+proof `-u` only touched metadata, not the old copy), domain XML redefine
+(`virsh dumpxml` showed both the disk and seed-ISO source paths updated),
+and the `/etc/profile.d/sandbox.sh`/`.env` rewrite (diffed `.env` against
+its own auto-created backup: exactly the 6 intended lines changed, line
+count identical before/after, confirming no secret lines were touched).
+
+Then actually booted the migrated VM (`01_start_vm.sh`) and confirmed it
+functions, not just that the metadata looks right: got its DHCP lease, SSH
+worked, and `06_doctor_vm.sh` passed every on-disk and guest check against
+the new paths. Re-ran `09_doctor_host.sh` and `85_host_check_libvirt_config.sh`
+afterward too -- both clean, both correctly reporting the new location.
+
+**Also flagged, then fixed on request**: the identical `virsh pool-is-active`
+mistake existed in `83_host_configure_libvirt_storage_pools.sh` (the
+pool-bootstrap script this one's `ensure_pool()` was modeled on) -- it
+hadn't surfaced there yet only because that script had so far always run
+against pools that were *already inactive* at that point in its own flow; a
+second, idempotent re-run against already-active pools would have hit the
+same `pool-start`-with-no-`|| true` failure this script hit. Fixed by adding
+a `pool_is_active()` helper (checks the `State:` line from `pool-info`,
+captured to a variable before grepping it rather than piped straight into
+`grep -q`, per the SIGPIPE-under-`pipefail` gotcha already documented in
+DECISIONS.md) and using it in both spots that used to call the nonexistent
+predicate. Also `chmod +x`'d `83` itself -- like the pre-`Write`-tool bug
+noted in the 2026-08-18 (3) entry below, it had been created without the
+execute bit and `./scripts/83_....sh` failed with "Permission denied"
+before ever reaching the actual fix. **Verified live** by having the user
+re-run `83` against this same host's pools, now already active and already
+pointing at the post-migration location -- exactly the scenario that used
+to be fatal. Printed "Pool definition is already correct." / "Pool is
+already active." for all 5 pools and completed cleanly to "Done." (One
+unrelated, harmless thing visible in that output: `83`'s very first
+diagnostic line, `grep -E '^(user|group)' /etc/libvirt/qemu.conf`, runs
+without `sudo` on a root-only-readable file and prints a permission-denied
+warning -- purely informational, doesn't affect anything since the script
+continues past it either way. Left alone, not part of what was asked.)
+
+Old data at `/Data/libvirt` was removed at the user's request once the
+migration was confirmed working (emptied via plain `rm -rf`/`rmdir` on the
+5 pool subdirs -- no sudo needed, since they're `libvirt-qemu:kvm` 775
+setgid and this user is in the `kvm` group; only the bare top-level
+`/Data/libvirt` directory itself remains, since removing *it* needs write
+access to its root-owned parent `/Data` -- harmless to leave behind). The
+test VM (`migration-test-vm`) was destroyed via `04_destroy_vm.sh --force`.
+Host ended the session with zero VMs and `09_doctor_host.sh` clean against
+the new `/home/abhinav/libvirt-migration-test` location.
+
+**Update, same day -- moved again, to the root partition, and found a
+second real bug (in libvirt itself, not this repo).** `80_host_check_specs.sh`
+revealed `/Data`'s underlying disk (`sda`, TOSHIBA MQ04ABF100) is actually a
+spinning HDD (`ROTA=1`), not the SSD the user believed it to be -- that
+alone explained most of the slowness that motivated this whole migration.
+The host's NVMe (`nvme0n1`, `ROTA=0`) is fully partitioned already (`/`:
+278G free, `/home`: 82G free, no room to carve a new volume without a risky
+live resize), so the choice was between those two mountpoints. User wanted
+`/` for the extra headroom, named `/libvirt` (mirroring the old
+`/Data/libvirt` naming).
+
+That migration completed via `84` with no errors -- but `01_start_vm.sh`
+then failed on a fresh test VM (`speed-test-vm`) with `internal error:
+cannot load AppArmor profile`. `journalctl -u libvirtd` pinpointed it
+exactly: `virt-aa-helper: error: /libvirt/disks/speed-test-vm.qcow2` /
+`error: skipped restricted file`. Traced this to actual libvirt source
+(fetched `src/security/virt-aa-helper.c` from GitHub, since `strings` on
+the installed binary didn't surface it cleanly): `valid_path()`'s
+`restricted[]` deny-list contains the literal 4-character string `"/lib"`
+-- no trailing slash -- matched via a naive `STRPREFIX()` (does-the-path-
+start-with-this-string), not a proper path-component boundary check. Any
+disk path starting with `/lib` gets blocked, including a completely
+unrelated top-level directory that just happens to share that prefix:
+`/libvirt`. Confirmed **not** a bug in this repo or `84` -- it's a genuine
+upstream libvirt naming footgun, unrelated to the `pool-is-active` bugs
+fixed earlier today. Nothing to patch here; the fix is just to not name the
+directory something starting with `/lib`.
+
+Presented the user 3 unaffected alternatives (`/srv/libvirt` --
+FHS-correct location for service data; `/vmstore`; `/virt`); user picked
+`/srv/libvirt`. Destroyed the broken `speed-test-vm` (defined but never
+successfully started), migrated again via `84` (`/libvirt` ->
+`/srv/libvirt`, no VMs to carry this time), and this time a fresh VM
+(`speed-test-vm2`) started, booted, and finished cloud-init cleanly --
+**7 seconds** from `01_start_vm.sh` to SSH-reachable, full cloud-init
+`disabled` (steady-state complete) at 34s including a mid-provisioning
+reboot, `06_doctor_vm.sh` all green. Destroyed it and cleaned up both
+leftover intermediate copies (`/home/abhinav/libvirt-migration-test`
+fully removed since its parent is the user's own home; `/libvirt`'s
+contents removed the same no-sudo way as `/Data/libvirt` earlier, bare
+top-level dir left behind since `/` is root-owned).
+
+**Also found and fixed a minor gap in `84` itself while reviewing the
+session's own artifacts**: one of the `.env` backups created during the
+middle (`/libvirt`) migration run (`.env.bak.20260821150706`) ended up
+0 bytes, while the live `.env` and the backups from the runs immediately
+before/after it were all correct and complete -- so no data was actually
+lost, but the specific safety net that backup was supposed to provide had
+silently failed. Cause not conclusively identified (the `cp` returned
+success and the script's own subsequent `grep`/`sed` calls against that
+same `.env` clearly saw valid content, so the corruption is isolated to
+that one backup artifact). Rather than chase an unreproducible one-off
+further, hardened `update_profile()`/`update_env_file()` in `84` to
+`cmp -s` the backup against the original immediately after copying it and
+`die` before proceeding if they don't match -- cheap, and directly
+motivated by concrete evidence this can happen, not speculative.
+`bash -n`/`shellcheck` clean after the change; not yet re-exercised against
+a real failure of this kind (would need to fake a `cp` corruption to test
+the new guard directly).
+
+Session ended with: `LIBVIRT_HOME=/srv/libvirt`, zero VMs, `09_doctor_host.sh`
+clean, `/Data/libvirt` and the two intermediate copies all cleaned up (`/libvirt`
+minus its unremovable-without-sudo empty top-level dir), and `83`/`84`/`85`
+all fixed, `chmod +x`'d, and verified live end-to-end on this host.
+
 ### 2026-08-18 (6) -- Claude (Sonnet 5)
 End-to-end verification of the Tailscale auth-key setup and the
 destroy-time API cleanup from log entry (5) below, once the user generated

@@ -55,16 +55,8 @@ precedence order.
 - Installing and setting up with dependencies : [81_host_setup_initial_dependencies](./scripts/81_host_setup_initial_dependencies.sh)
 - Bootstrap script - Environment variables at the system level : [82_host_setup_bootstrap_script](./scripts/82_host_setup_bootstrap_script.sh)
 - Configuring libvirt and the storage pools : [83_host_configure_libvirt_storage_pools](./scripts/83_host_configure_libvirt_storage_pools.sh)
-- Edit storage pools : 
-
-TODO : Might be needed in case you want to change the LIBVIRT_HOME on the linux host 
-- Will require us to change the environment variables 
-- Will require us to change the bootstrap scrtips 
-- Will require us to change the storage pools in the libvirt 
-- Will require us to move the VMs to the new locations
-
+- Edit storage pools : [84_host_change_libvirt_storage_pools](./scripts/84_host_change_libvirt_storage_pools.sh)
 - Checking configurations : [85_host_check_libvirt_config](./scripts/85_host_check_libvirt_config.sh)
-
 
 ## Other setup 
 

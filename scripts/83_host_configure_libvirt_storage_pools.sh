@@ -84,6 +84,20 @@ sudo find "$LIBVIRT_HOME" -type d -exec chmod g+s {} \;
 echo
 
 # -----------------------------------------------------------------------------
+# Helper: is a pool currently active? (there's no `virsh pool-is-active`
+# subcommand -- it doesn't exist -- so check the "State:" line from
+# pool-info instead. Capture to a variable before grepping it, not a
+# straight pipe into `grep -q`, to avoid the SIGPIPE race under `pipefail`
+# documented in DECISIONS.md.)
+# -----------------------------------------------------------------------------
+
+pool_is_active() {
+    local pool="$1" info
+    info="$(sudo virsh pool-info "$pool" 2>/dev/null)" || return 1
+    grep -q "^State:.*running" <<< "$info"
+}
+
+# -----------------------------------------------------------------------------
 # Helper: configure a directory-based libvirt pool
 # -----------------------------------------------------------------------------
 
@@ -127,7 +141,7 @@ ensure_pool() {
             echo "    Redefining pool."
 
             # Only destroy/undefine when the configuration actually differs.
-            if sudo virsh pool-is-active "$pool" >/dev/null 2>&1; then
+            if pool_is_active "$pool"; then
                 sudo virsh pool-destroy "$pool"
             fi
 
@@ -150,11 +164,11 @@ ensure_pool() {
     # Ensure pool is running
     # -------------------------------------------------------------------------
 
-    if ! sudo virsh pool-is-active "$pool" >/dev/null 2>&1; then
+    if pool_is_active "$pool"; then
+        echo "    Pool is already active."
+    else
         echo "    Starting pool."
         sudo virsh pool-start "$pool"
-    else
-        echo "    Pool is already active."
     fi
 
     # -------------------------------------------------------------------------
