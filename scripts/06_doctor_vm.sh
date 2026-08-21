@@ -167,7 +167,7 @@ else
         # "disabled" is the expected steady state, not just "done" -- the
         # last runcmd step in user-data.tmpl touches
         # /etc/cloud/cloud-init.disabled so it never runs again on
-        # subsequent boots (see lifecycle.md: "cloud-init only runs once").
+        # subsequent boots (see lifecycle_vms.md: "cloud-init only runs once").
         # Any later check (e.g. after the package_reboot_if_required reboot,
         # or just a doctor run days later) will legitimately report
         # "disabled", not "done".

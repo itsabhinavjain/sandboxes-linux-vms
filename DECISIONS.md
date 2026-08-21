@@ -182,7 +182,7 @@ way -- deleting the device on every stop would break the common case (a
 short stop/restart resuming the exact same node/session with zero
 Tailscale calls), and adding a Tailscale rejoin step to `01_start_vm.sh`
 changes that script's contract for a genuinely rare edge case. Documented
-instead in `lifecycle.md`'s `01_start_vm.sh` section: if it happens,
+instead in `lifecycle_vms.md`'s `01_start_vm.sh` section: if it happens,
 re-running `11_configure_vm.sh <vmname> --skip-docker --skip-ufw` is a
 one-line fix (`tailscale up --authkey=...` is idempotent-safe to re-run
 regardless of current session state).
@@ -263,7 +263,7 @@ env checks, and the overall script structure between the two files. Merged
   merged three) via a shared `show_help_if_requested` helper in
   `common.sh`, checked before `require_env` so `--help` works even with a
   broken/unconfigured environment. Each script's `--help` text is the
-  canonical, single-sourced flag reference -- `lifecycle.md` intentionally
+  canonical, single-sourced flag reference -- `lifecycle_vms.md` intentionally
   no longer restates full flag lists, to avoid a second copy that can drift.
 
 *Decision : Individual state files and not a global registry*
@@ -277,34 +277,48 @@ env checks, and the overall script structure between the two files. Merged
 ## Directory structure (actual)
 
 All scripts live under `scripts/`, run from the repo root
-(e.g. `./scripts/00_init_vm.sh myvm`).
+(e.g. `./scripts/00_init_vm.sh myvm`). Two tiers live side by side here:
+`00`-`06`/`08`-`09`/`11`-`12`/`50`+ manage VMs (documented in
+`lifecycle_vms.md`); `80`+ manage the host itself (documented in
+`lifecycle_host.md`) -- see CLAUDE.md's "Script conventions" sections for
+why they're deliberately not held to the same conventions.
 
 ```
 scripts/
   lib/
-    common.sh              # sourced by every numbered script
+    common.sh              # sourced by every VM-tier script
     configure_steps.sh     # shared logic for 11_configure_vm.sh
     resize_steps.sh        # shared logic for 12_resize_vm.sh
+    tailscale_api.sh        # shared logic for 04_destroy_vm.sh's device cleanup
   00_init_vm.sh             # [-i|--interactive], see "Decision : Unify automated/interactive scripts" above
   01_start_vm.sh
   02_stop_vm.sh
   03_reboot_vm.sh
   04_destroy_vm.sh
   05_status_vm.sh
-  06_doctor_vm.sh                 # per-VM diagnostics, see lifecycle.md
-  08_test.sh                     # end-to-end smoke test, see lifecycle.md
-  09_doctor_host.sh              # host-level diagnostics, see lifecycle.md
+  06_doctor_vm.sh                 # per-VM diagnostics, see lifecycle_vms.md
+  08_test.sh                     # end-to-end smoke test, see lifecycle_vms.md
+  09_doctor_host.sh              # host-level diagnostics (VM tier), see lifecycle_vms.md
   50_list_vms.sh
   51_info_vms.sh
   11_configure_vm.sh             # [-i|--interactive]
   12_resize_vm.sh                # [-i|--interactive]
   21_snapshot_vm.sh              # Phase 6, not built yet
   22_revert_vm.sh                # Phase 6, not built yet
+  80_host_check_specs.sh                       # host tier, see lifecycle_host.md
+  81_host_setup_initial_dependencies.sh        # host tier, see lifecycle_host.md
+  82_host_setup_bootstrap_script.sh            # host tier, see lifecycle_host.md
+  83_host_configure_libvirt_storage_pools.sh   # host tier, see lifecycle_host.md
+  84_host_change_libvirt_storage_pools.sh      # host tier, see lifecycle_host.md
+  85_host_check_libvirt_config.sh              # host tier, see lifecycle_host.md
 setup_config/
   meta-data.tmpl
   network-config.tmpl    # left unused for now (DHCP default)
   user-data.tmpl
+docs/
+  libvirt_reference.md    # supplementary libvirt/qemu-img/virt-install/virsh reference
 env.sample
-SETUP.md                    # updated with setgid + yq
-lifecycle.md                # filled in with per-script contracts
+SETUP.md                    # host bootstrap narrative; links to lifecycle_host.md for the script contracts
+lifecycle_vms.md            # per-script contracts for the VM/fleet tier
+lifecycle_host.md           # per-script contracts for the host-administration tier
 ```

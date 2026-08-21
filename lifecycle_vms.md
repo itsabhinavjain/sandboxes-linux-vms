@@ -1,4 +1,9 @@
-# Lifecycle scripts
+# Lifecycle scripts (VM/fleet tier)
+
+This covers the scripts that create and manage individual VMs, or the
+fleet as a whole. For the separate tier that sets up and manages the Linux
+**host** itself (packages, libvirt storage pools, etc.), see
+[lifecycle_host.md](./lifecycle_host.md) instead.
 
 All scripts live in `scripts/` and are run from the repo root (e.g.
 `./scripts/00_init_vm.sh myvm`). Each takes a `<vmname>` as its first

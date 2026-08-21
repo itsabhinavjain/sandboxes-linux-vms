@@ -1,5 +1,14 @@
 This file mentions about various setup and maintainence to be done on the linux host 
 
+This is the narrative walkthrough, in order, of the one-time (and
+occasional) host-administration scripts (`scripts/80_*.sh`-`85_*.sh`). For
+their exact flags/behavior contract and a "Common Usage Patterns" section,
+see [lifecycle_host.md](./lifecycle_host.md) -- this file stays focused on
+the "do this, then this" sequence and the non-scripted bits (downloading a
+cloud image, Tailscale key generation). For the VM/fleet scripts you'd run
+once the host is set up, see [lifecycle_vms.md](./lifecycle_vms.md)
+instead.
+
 Table of contents 
 - Notes and nomenclatures 
 - Understanding the linux host 
@@ -52,6 +61,7 @@ precedence order.
 - TODO : Things to improve : the CPU section should explicitly show physical cores, threads/core, sockets, and cache, rather than the current grep potentially hiding those fields. That will make the output much more useful when we use it to calculate VM capacity.
 
 ## Initial host setup, libvirt setup and configuration 
+Run in this order on a fresh host; full contract/flags for each in [lifecycle_host.md](./lifecycle_host.md#scripts).
 - Installing and setting up with dependencies : [81_host_setup_initial_dependencies](./scripts/81_host_setup_initial_dependencies.sh)
 - Bootstrap script - Environment variables at the system level : [82_host_setup_bootstrap_script](./scripts/82_host_setup_bootstrap_script.sh)
 - Configuring libvirt and the storage pools : [83_host_configure_libvirt_storage_pools](./scripts/83_host_configure_libvirt_storage_pools.sh)

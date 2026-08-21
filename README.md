@@ -62,8 +62,8 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 - `scripts/lib/common.sh` loads `.env` automatically (every script sources `common.sh`); nothing else to run
 
 ## Scripts 
-- See [lifecycle.md](./lifecycle.md) for the full contract of each script. Every script also accepts `-h`/`--help` for its own flag reference.
-- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm.sh myvm`). Shared helpers are in `scripts/lib/common.sh`.
+- Two tiers: VM/fleet scripts (create, run, and manage individual VMs or the whole fleet) and host-administration scripts (set up and manage the Linux host itself). See [lifecycle_vms.md](./lifecycle_vms.md) and [lifecycle_host.md](./lifecycle_host.md) for the full contract of each script. Every VM-tier script (and `84` in the host tier) also accepts `-h`/`--help` for its own flag reference.
+- All scripts live in [`scripts/`](./scripts) and are run from the repo root (e.g. `./scripts/00_init_vm.sh myvm`). Shared helpers for the VM tier are in `scripts/lib/common.sh`.
 - Scripts that support both a fire-and-forget mode and a prompted/confirmed mode take a single `-i`/`--interactive` flag rather than being split into separate files -- see below.
 
 ### Sandbox Lifecycle Scripts (Summary) 
@@ -97,13 +97,25 @@ Each VM would have a yaml file that would contain details of the VM. The same ya
 - `scripts/51_info_vms.sh`             # Dumps full state.yaml detail for every VM (no vmname arg) 
 ```
 
+### Host Administration Scripts (Summary)
+Set up and manage the Linux host itself, not any individual VM -- see [lifecycle_host.md](./lifecycle_host.md) for the full contract, including a "Common Usage Patterns" section. Numbered `80`+, no vmname arg, most require `sudo` (unlike the VM-tier scripts above).
+```
+- `scripts/80_host_check_specs.sh`                         # Read-only: KVM support, CPU/RAM/disk/network specs
+- `scripts/81_host_setup_initial_dependencies.sh`          # Installs packages, yq, joins libvirt/kvm groups
+- `scripts/82_host_setup_bootstrap_script.sh`               # Installs /etc/profile.d/sandbox.sh
+- `scripts/83_host_configure_libvirt_storage_pools.sh`      # Defines/starts the 5 libvirt storage pools (idempotent)
+- `scripts/84_host_change_libvirt_storage_pools.sh <path>`  # Moves LIBVIRT_HOME + all managed VMs to a new location
+- `scripts/85_host_check_libvirt_config.sh`                 # Read-only: env vars, tool versions, pool/net/domain list
+```
+
 ## Notes 
 - Naming convention of virtual machines : `vir-ubuntu-01` and then additional numbers. The name should always suggest that it is a virtual machine
 
 ## References
 - Usage 
     - [Linux host setup](./SETUP.md) 
-    - [Lifecycle scripts](./lifecycle.md) : Note that this contains a "Common Usage Patterns" sections and also details all the lifecycle scripts. 
+    - [VM/fleet lifecycle scripts](./lifecycle_vms.md) : Note that this contains a "Common Usage Patterns" section and also details all the VM/fleet scripts.
+    - [Host administration scripts](./lifecycle_host.md) : Also has its own "Common Usage Patterns" section, covering host bootstrap and storage-pool setup/migration. 
 - Development 
     - [Implmentation Plan, Roadmap and Implentation Logs](./PLAN.md) : Mentions the various additional things that I can implement in this repo 
     - [Design Decisions and Policies](./DECISIONS.md)

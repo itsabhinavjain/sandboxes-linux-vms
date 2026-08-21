@@ -1,4 +1,7 @@
-egrep -c '(vmx|svm)' /proc/cpuinfo
+#!/usr/bin/env bash
+set -euo pipefail
+
+grep -Ec '(vmx|svm)' /proc/cpuinfo
 sudo apt install -y cpu-checker
 sudo kvm-ok
 
@@ -34,8 +37,8 @@ sudo curl -fsSL -o /usr/local/bin/yq \
 sudo chmod +x /usr/local/bin/yq
 yq --version   # should print "yq (https://github.com/mikefarah/yq/) version ..."
 
-sudo usermod -aG libvirt $USER
-sudo usermod -aG kvm $USER
+sudo usermod -aG libvirt "$USER"
+sudo usermod -aG kvm "$USER"
 
 sudo systemctl enable libvirtd
 sudo systemctl start libvirtd
@@ -50,4 +53,4 @@ echo "sudo systemctl status libvirtd"
 echo "groups"
 echo "sudo virsh list --all"
 echo "sudo virsh net-list --all"
-sudo "echo "irsh pool-list --all"
+echo "sudo virsh pool-list --all"

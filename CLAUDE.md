@@ -7,22 +7,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A collection of bash scripts for managing a fleet of Linux VMs on a single host via `libvirt`/`virsh` + `qemu`, provisioned from golden cloud images with cloud-init. No app code, no build step — the scripts themselves are the product.
 
 Full docs already exist and are the source of truth — read them instead of guessing:
-- @lifecycle.md — the contract for every script: what each does, its flags, and a "Common Usage Patterns" section with copy-pasteable command sequences. Every script's `--help`/`-h` is the canonical source for its exact flags (lifecycle.md intentionally doesn't restate them).
+- @lifecycle_vms.md — the contract for every VM/fleet script (`00`-`06`, `08`-`09`, `11`-`12`, `50`+): what each does, its flags, and a "Common Usage Patterns" section with copy-pasteable command sequences. Every script's `--help`/`-h` is the canonical source for its exact flags (lifecycle_vms.md intentionally doesn't restate them).
+- @lifecycle_host.md — the equivalent contract for the host-*administration* scripts (`80`-`85`): host specs, dependency install, the `/etc/profile.d/sandbox.sh` bootstrap, libvirt storage-pool setup/migration. A different, less uniform tier than the VM scripts — see "Script conventions (host-administration scripts)" below before assuming it mirrors lifecycle_vms.md's guarantees.
 - @DECISIONS.md — architecture rationale, and a "Gotchas / intentional decisions — don't 'fix' these" section (no pause/resume script, no live resize, no disk shrink, resize/configure logic isolated in `scripts/lib/`).
-- @SETUP.md — one-time host bootstrap (packages, libvirt pools, `/etc/profile.d/sandbox.sh`).
+- @SETUP.md — one-time host bootstrap narrative, walking through the `80`-`85` scripts in order; @lifecycle_host.md has their actual flag/behavior contract.
 - @PLAN.md — roadmap/wishlist, and an "AGENT LOGS" section: after doing meaningful work in this repo, append a dated log entry there matching the existing entries' style.
 
-## Script conventions
+## Script conventions (VM/fleet scripts: `00`-`06`, `08`-`09`, `11`-`12`, `50`+)
 
 - Run every script from the repo root: `./scripts/00_init_vm.sh myvm`.
 - Every script starts with `source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"`, which runs under `set -euo pipefail`, auto-loads `.env`, and provides `die()`, `log()`, `confirm()`, `check_bin()`, `validate_vmname()`, `require_env()`, `state_init/get/set/set_raw/remove()`.
-- Naming: single-VM scripts are `00`-`06`, suffixed `_vm.sh`; fleet-wide scripts are `50`+, suffixed `_vms.sh`; `09_doctor_host.sh` and `08_test.sh` are host-level (no vmname arg).
+- Naming: single-VM scripts are `00`-`06`, suffixed `_vm.sh`; fleet-wide scripts are `50`+, suffixed `_vms.sh`; `09_doctor_host.sh` and `08_test.sh` are host-*level* (no vmname arg) but still belong to this tier — they source `common.sh`, need no `sudo`, and have full `--help`. Don't confuse them with the `80`+ host-*administration* scripts below, which are a different tier entirely (see lifecycle_host.md).
 - `-i`/`--interactive` is one merged flag (not separate scripts) supported by `00_init_vm.sh`, `11_configure_vm.sh`, `12_resize_vm.sh` — it only changes whether the script prompts/confirms, never what it does. Explicit flags always win over interactive prompts.
 - `--help`/`-h` is handled via a `USAGE=$(cat <<EOF ... EOF)` heredoc + `show_help_if_requested "$USAGE" "$@"`, called **before** `require_env` so help works even without a configured environment.
 - Never call `virsh` directly — always through the `VIRSH=(virsh -c qemu:///system)` wrapper from `common.sh`, e.g. `"${VIRSH[@]}" dominfo "$VMNAME"`.
 - **Never pipe `virsh` output straight into `grep -q`/`grep -qx` under `pipefail`** — it's a SIGPIPE race, already fixed in 3 places. Capture to a variable first, then grep the variable.
 - State is per-VM YAML at `${STORAGE_POOL_DISKS}/<vmname>.state.yaml`, edited only via `yq` — this must be **mikefarah/yq (Go)**, not the apt `kislyuk/yq` (Python); the `-i` in-place `.key = "value"` syntax used here is Go-yq-specific.
-- No scripts require `sudo` (relies on `libvirt`/`kvm` group membership + setgid pool dirs). If a change seems to need `sudo`, something is likely off vs. the intended design.
+- No scripts in this tier require `sudo` (relies on `libvirt`/`kvm` group membership + setgid pool dirs). If a change here seems to need `sudo`, something is likely off vs. the intended design.
+
+## Script conventions (host-administration scripts: `80`-`85`)
+
+These provision/manage the Linux host itself (packages, `/etc/profile.d/sandbox.sh`, libvirt storage pools) rather than any VM, and are a newer, deliberately less uniform tier — read @lifecycle_host.md before "fixing" them into the VM-tier conventions above:
+- Naming: `NN_host_verb_noun.sh`, numbered `80`+ — no `_vm(s)` suffix.
+- Most require `sudo` for their actual work (package installs, `chown`/`chmod` on `LIBVIRT_HOME`, `virsh pool-*` calls) — unlike the VM tier, needing `sudo` here is expected, not a smell.
+- None source `scripts/lib/common.sh`; `83`/`84` do their own required-env-var checks inline instead.
+- `--help`/`-h` is inconsistent: only `84` has it (and only `84` checks it before requiring env vars, matching the VM-tier convention). `80`/`81`/`82`/`85` take no flags at all and always run top-to-bottom.
+- Idempotency varies per script — `83` and `84` are carefully idempotent (safe to re-run, only change what's actually wrong); `81`/`82` are safe to re-run but don't explicitly check state first (e.g. `apt install` on an already-installed package is just a no-op).
 
 ## Env / setup
 
