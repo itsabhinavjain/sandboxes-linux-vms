@@ -73,28 +73,16 @@ for arg in "$@"; do
 done
 
 # -----------------------------------------------------------------------------
-# Small local helpers (this script doesn't source scripts/lib/common.sh --
-# it's a host-level script in the 80s series, same as 81/82/83/85, not a
-# per-VM lifecycle script)
+# log/die/check_bin/confirm/pool_is_active/ensure_pool come from
+# lib/host_common.sh, shared with 83_host_configure_libvirt_storage_pools.sh
+# (this script doesn't source scripts/lib/common.sh -- that's the VM-tier's
+# contract; see CLAUDE.md's "Script conventions (host-administration
+# scripts)"). human_size() below is migration-specific and stays local.
 # -----------------------------------------------------------------------------
 
-log()  { echo "==> $*"; }
-die()  { echo "ERROR: $*" >&2; exit 1; }
-
-check_bin() {
-    command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
-}
+source "$(dirname "${BASH_SOURCE[0]}")/lib/host_common.sh"
 
 FORCE=0
-confirm() {
-    local prompt="${1:-Continue?}"
-    if [[ "$FORCE" -eq 1 ]]; then
-        return 0
-    fi
-    local reply
-    read -r -p "${prompt} (yes/no): " reply
-    [[ "$reply" == "yes" ]]
-}
 
 human_size() {
     if command -v numfmt >/dev/null 2>&1; then
@@ -304,8 +292,10 @@ fi
 
 log "Deactivating storage pools"
 for pool in "${POOL_NAMES[@]}"; do
-    # No `virsh pool-is-active` predicate exists -- pool-destroy on an
-    # already-inactive pool just errors, which is fine to swallow here.
+    # Could gate this on pool_is_active() (lib/host_common.sh), but
+    # pool-destroy on an already-inactive pool just errors, which is fine
+    # to swallow here -- this loop runs once, unconditionally, at the start
+    # of a migration, not in a loop that needs to distinguish states.
     if sudo virsh pool-info "$pool" >/dev/null 2>&1; then
         sudo virsh pool-destroy "$pool" >/dev/null 2>&1 || true
     fi
@@ -340,30 +330,9 @@ sudo chmod -R 775 "$NEW_LIBVIRT_HOME"
 sudo find "$NEW_LIBVIRT_HOME" -type d -exec chmod g+s {} \;
 
 # -----------------------------------------------------------------------------
-# Step 4: redefine pools at the new targets
+# Step 4: redefine pools at the new targets (ensure_pool() from
+# lib/host_common.sh, shared with 83)
 # -----------------------------------------------------------------------------
-
-ensure_pool() {
-    local pool="$1" target="$2"
-    log "  $pool -> $target"
-    local exists=0 current_target=""
-    if sudo virsh pool-info "$pool" >/dev/null 2>&1; then
-        exists=1
-        current_target="$(sudo virsh pool-dumpxml "$pool" | sed -n 's:.*<path>\(.*\)</path>.*:\1:p' | head -n1)"
-    fi
-    if [[ "$exists" -eq 0 ]]; then
-        sudo virsh pool-define-as "$pool" dir --target "$target"
-    elif [[ "$current_target" != "$target" ]]; then
-        sudo virsh pool-destroy "$pool" >/dev/null 2>&1 || true
-        sudo virsh pool-undefine "$pool"
-        sudo virsh pool-define-as "$pool" dir --target "$target"
-    fi
-    sudo virsh pool-autostart "$pool" >/dev/null 2>&1 || true
-    # No `virsh pool-is-active` predicate exists -- just try to start it;
-    # if it's already active this errors harmlessly, hence `|| true`.
-    sudo virsh pool-start "$pool" >/dev/null 2>&1 || true
-    sudo virsh pool-refresh "$pool" >/dev/null 2>&1 || true
-}
 
 log "Redefining storage pools at their new targets"
 for i in "${!POOL_NAMES[@]}"; do

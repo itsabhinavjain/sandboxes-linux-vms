@@ -186,3 +186,21 @@ A quicker, less rigorous cousin of `09_doctor_host.sh` (see
   env vars before it would ever get the chance to show one.
 - **Avoid `/lib`-prefixed `LIBVIRT_HOME` destinations** when using `84` --
   see its section above.
+- **`80` and `85` deliberately don't use `set -e`.** DECISIONS.md's
+  "`set -euo pipefail` in every script" rule is aimed at the mutating
+  scripts; `80_host_check_specs.sh` (`set -u` only) and
+  `85_host_check_libvirt_config.sh` (`set -uo pipefail`) are read-only
+  diagnostic dumps that are meant to print every section even if one
+  command in the middle fails (e.g. `numactl` not installed, a pool that
+  doesn't exist yet) -- an `-e` abort partway through would defeat that.
+  Don't "fix" these into `-e` without preserving that behavior. `81`-`84`
+  all use full `set -euo pipefail`, matching the rule.
+- **`83`/`84` share pool-management helpers via `scripts/lib/host_common.sh`**
+  (`log`/`die`/`confirm`/`check_bin`/`pool_is_active`/`ensure_pool`) --
+  this is a host-tier-only lib, separate from the VM-tier's
+  `scripts/lib/common.sh`. It exists because the `pool-is-active`-doesn't-
+  exist bug (see PLAN.md's 2026-08-21 agent log) was independently found
+  and fixed in `83` and then `84` on the same day, purely because the two
+  scripts had no shared source of truth for that logic. If `85` or a
+  future host script needs the same pool helpers, extend this file rather
+  than re-copying the functions again.

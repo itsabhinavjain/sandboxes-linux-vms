@@ -290,6 +290,7 @@ scripts/
     configure_steps.sh     # shared logic for 11_configure_vm.sh
     resize_steps.sh        # shared logic for 12_resize_vm.sh
     tailscale_api.sh        # shared logic for 04_destroy_vm.sh's device cleanup
+    host_common.sh          # shared logic for 83/84 (host tier -- not sourced by VM-tier scripts)
   00_init_vm.sh             # [-i|--interactive], see "Decision : Unify automated/interactive scripts" above
   01_start_vm.sh
   02_stop_vm.sh

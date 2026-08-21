@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/host_common.sh"
+
 # -----------------------------------------------------------------------------
 # Required environment variables
 # -----------------------------------------------------------------------------
@@ -84,102 +86,8 @@ sudo find "$LIBVIRT_HOME" -type d -exec chmod g+s {} \;
 echo
 
 # -----------------------------------------------------------------------------
-# Helper: is a pool currently active? (there's no `virsh pool-is-active`
-# subcommand -- it doesn't exist -- so check the "State:" line from
-# pool-info instead. Capture to a variable before grepping it, not a
-# straight pipe into `grep -q`, to avoid the SIGPIPE race under `pipefail`
-# documented in DECISIONS.md.)
-# -----------------------------------------------------------------------------
-
-pool_is_active() {
-    local pool="$1" info
-    info="$(sudo virsh pool-info "$pool" 2>/dev/null)" || return 1
-    grep -q "^State:.*running" <<< "$info"
-}
-
-# -----------------------------------------------------------------------------
-# Helper: configure a directory-based libvirt pool
-# -----------------------------------------------------------------------------
-
-ensure_pool() {
-    local pool="$1"
-    local target="$2"
-
-    echo "==> Ensuring pool: $pool"
-    echo "    target: $target"
-
-    local exists=0
-    local current_target=""
-
-    if sudo virsh pool-info "$pool" >/dev/null 2>&1; then
-        exists=1
-        current_target="$(
-            sudo virsh pool-dumpxml "$pool" |
-            sed -n 's:.*<path>\(.*\)</path>.*:\1:p' |
-            head -n 1
-        )"
-    fi
-
-    # -------------------------------------------------------------------------
-    # Pool doesn't exist
-    # -------------------------------------------------------------------------
-
-    if [[ "$exists" -eq 0 ]]; then
-        echo "    Pool does not exist; creating it."
-
-        sudo virsh pool-define-as "$pool" dir --target "$target"
-    else
-        # ---------------------------------------------------------------------
-        # Pool exists but points to the wrong directory
-        # ---------------------------------------------------------------------
-
-        if [[ "$current_target" != "$target" ]]; then
-            echo "    Existing pool points to:"
-            echo "      $current_target"
-            echo "    Expected:"
-            echo "      $target"
-            echo "    Redefining pool."
-
-            # Only destroy/undefine when the configuration actually differs.
-            if pool_is_active "$pool"; then
-                sudo virsh pool-destroy "$pool"
-            fi
-
-            sudo virsh pool-undefine "$pool"
-            sudo virsh pool-define-as "$pool" dir --target "$target"
-        else
-            echo "    Pool definition is already correct."
-        fi
-    fi
-
-    # -------------------------------------------------------------------------
-    # Ensure autostart
-    # -------------------------------------------------------------------------
-
-    if ! sudo virsh pool-autostart "$pool" 2>&1 | grep -q "already marked"; then
-        sudo virsh pool-autostart "$pool" >/dev/null
-    fi
-
-    # -------------------------------------------------------------------------
-    # Ensure pool is running
-    # -------------------------------------------------------------------------
-
-    if pool_is_active "$pool"; then
-        echo "    Pool is already active."
-    else
-        echo "    Starting pool."
-        sudo virsh pool-start "$pool"
-    fi
-
-    # -------------------------------------------------------------------------
-    # Refresh contents
-    # -------------------------------------------------------------------------
-
-    sudo virsh pool-refresh "$pool"
-
-    echo
-}
-
+# pool_is_active() / ensure_pool() come from lib/host_common.sh, shared with
+# 84_host_change_libvirt_storage_pools.sh.
 # -----------------------------------------------------------------------------
 # Configure pools
 # -----------------------------------------------------------------------------

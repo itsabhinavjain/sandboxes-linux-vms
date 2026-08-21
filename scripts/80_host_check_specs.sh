@@ -40,7 +40,7 @@ for dev in /sys/block/*; do
   echo
   echo "/dev/$name"
   echo "  Size:        $(lsblk -dn -o SIZE "/dev/$name" 2>/dev/null)"
-  echo "  Model:       $(cat "$dev/device/model" 2>/dev/null | xargs || echo unknown)"
+  echo "  Model:       $(xargs < "$dev/device/model" 2>/dev/null || echo unknown)"
   echo "  Transport:   $(lsblk -dn -o TRAN "/dev/$name" 2>/dev/null)"
   echo "  Rotational:  $(cat "$dev/queue/rotational" 2>/dev/null || echo unknown)"
   echo "  Scheduler:   $(cat "$dev/queue/scheduler" 2>/dev/null || echo unknown)"

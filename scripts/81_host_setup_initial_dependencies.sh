@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-grep -Ec '(vmx|svm)' /proc/cpuinfo
 sudo apt install -y cpu-checker
 sudo kvm-ok
 
