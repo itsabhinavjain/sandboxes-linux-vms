@@ -6,6 +6,7 @@
   - [ ] Make working within VM easy : in cloudinit or in configuration files, we migt want to add things like autocompelte, history search, jq, fzf etc everything that essentially makes working with VMs easier. Additionally we can install samba server. We can also install VS code extensions that helps working with and navigating the repo easily - e.g. Markdown files handling liek we do in obsidian etc. 
 
 ## Wishlist (Might implement later. Dont implement this right now - overengineering and wastage of time)
+- [ ] Make this repo to have skills etc. Essentially this can evolve into a agent workspace and we can have decisions and instructions and commands and scripts. This will allow us to further abstract the use-cases. We can then later also use this to troubleshoot some problems that we might be facing in the individual vms. Additionally, new functionalities can probable be better managed. Think this through. We can have various commands like init etc. 
 - [ ] Snapshot scripts (`21/22` snapshot scripts)
 - [ ] Move from individual yaml state files to a global repository. Think this through later. Dont waste your time on this. 
 - VM  
