@@ -26,6 +26,7 @@
       - FTP server  
       - File server using http etc 
 - Check if we can manage using Cockpit - a GUI based control center 
+- [ ] Base Cloud Image upgrade workflow and process 
 - CLI tool development (Long shot - Dont invest your time on this right now)
   - [ ] Change from scripts to an actual cli tool that I can design. That would make it more distributable 
   - [ ] When making into a CLI tool, you can actually make the tool a little more generic and support other types of sandboxes like - microvms, docker containers etc 

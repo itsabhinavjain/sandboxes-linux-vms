@@ -1,12 +1,64 @@
-This file mentions the basic setup that is required on the host machine to enable having libvirt based vms. 
+This file mentions about various setup and maintainence to be done on the linux host 
 
+Table of contents 
+- Notes and nomenclature 
+- Understanding the linux host 
+- Initial host steup, libvirt setup and configuration 
+    - Installing and setting up with dependencies 
+    - Bootstrap script - Environment variables at the system level 
+    - Configuring libvirt and the storage pools 
+    - Checking configurations
+- Editing libvirt configuration (and migrating the the current VMs) 
+- Checking libvirt configuration
+- Other setups 
+    - Download the cloud images 
+    - Tailscale setup 
+
+--- 
+
+## Notes and nomenclature 
+
+```
+LIBVIRT_HOME
+STORAGE_POOL_IMAGES
+STORAGE_POOL_ISOS
+STORAGE_POOL_DISKS
+STORAGE_POOL_SNAPSHOTS
+STORAGE_POOL_CLOUD_INIT_ISOS
+```
+
+```
+export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"              : Will have the cloud images that I have downloaded from the internet. 
+export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"                  : Will have installer-ISOs (an installer). this is not being used right now. Currently we are working with cloud images. 
+export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"                : Will have the qcow2 disks and yaml specifications 
+export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"        : Will be used in case we have external snapshots. Right now we are planning internal snapshots only. 
+export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init" : Will have seed-ISOs (cloud-init isos - essentially a configuration disk) that I create from cloud-init. 
+```
+
+This system-level bootstrap is the baseline. If you want per-checkout
+overrides (a different storage pool location, different defaults) without
+touching `/etc/profile.d/sandbox.sh`, copy [`env.sample`](./env.sample) to
+`.env` in the repo root instead -- `scripts/lib/common.sh` loads it
+automatically and it takes precedence over the system-level variables set
+above. See [README.md](./README.md#requirements-for-the-repo) for the full
+precedence order.
+
+
+## Understanding the linux host 
+[check_host_specs](./scripts/80_check_host_specs.sh)
+- TODO : Things to improve : the CPU section should explicitly show physical cores, threads/core, sockets, and cache, rather than the current grep potentially hiding those fields. That will make the output much more useful when we use it to calculate VM capacity.
+
+
+
+## Initial host setup, libvirt setup and configuration 
 1) Install the dependencies that are required
 2) Bootstrap script (Setup first time)
 3) Configuration script (Setup before running lifecycle scripts)
 4) VM lifecycle scripts
 5) Check the environment 
 
-## Installing and setting up with dependencies 
+
+### Installing and setting up with dependencies 
 ```
 egrep -c '(vmx|svm)' /proc/cpuinfo
 sudo apt install -y cpu-checker
@@ -52,10 +104,9 @@ sudo virsh list --all
 sudo virsh net-list --all
 sudo virsh pool-list --all
 
-
 ```
 
-## Bootstrap script
+### Bootstrap script setup - Defines the various environment variables at the system level 
 Filename : `sudo nano /etc/profile.d/sandbox.sh`
 
 ```
@@ -94,7 +145,7 @@ export TAILSCALE_TAILNET=""
 
 Change the permissions : `sudo chmod 644 /etc/profile.d/sandbox.sh`
 
-## Configuring Libvirt and the storage pools 
+### Configuring Libvirt and the storage pools 
 
 ```
 grep "^user" /etc/libvirt/qemu.conf
@@ -163,7 +214,7 @@ virsh pool-dumpxml cloudinit-pool
 
 ```
 
-## Checking configurations
+### Checking configurations
 ```
 virt-install --version
 cloud-init --version
@@ -180,31 +231,27 @@ virsh -c qemu:///system list --all
 
 ```
 
-vm Lifecycle scripts can now assume it has 
-```
-LIBVIRT_HOME
-STORAGE_POOL_IMAGES
-STORAGE_POOL_ISOS
-STORAGE_POOL_DISKS
-STORAGE_POOL_SNAPSHOTS
-STORAGE_POOL_CLOUD_INIT_ISOS
-```
 
-This system-level bootstrap is the baseline. If you want per-checkout
-overrides (a different storage pool location, different defaults) without
-touching `/etc/profile.d/sandbox.sh`, copy [`env.sample`](./env.sample) to
-`.env` in the repo root instead -- `scripts/lib/common.sh` loads it
-automatically and it takes precedence over the system-level variables set
-above. See [README.md](./README.md#requirements-for-the-repo) for the full
-precedence order.
+## Editing libvirt configuration (and migrating the the current VMs) 
+TODO : Might be needed in case you want to change the LIBVIRT_HOME on the linux host 
+- Will require us to change the environment variables 
+- Will require us to change the bootstrap scrtips 
+- Will require us to change the storage pools in the libvirt 
+- Will require us to move the VMs to the new locations
 
-## Download the cloud img 
+## Checking libvirt configuration
+TO
+
+
+## Other setup 
+
+### Download the cloud img 
 ```
 curl -fsSL -o "$STORAGE_POOL_IMAGES/noble-server-cloudimg-amd64.img" \
   https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 ```
 
-## TAILSCALE 
+### TAILSCALE SETUP
 1) Reusable + ephemeral auth key → TAILSCALE_AUTHKEY
 Go to https://login.tailscale.com/admin/settings/keys
 1. Click "Generate auth key..."
