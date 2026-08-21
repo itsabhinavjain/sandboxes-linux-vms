@@ -1,9 +1,9 @@
 This file mentions about various setup and maintainence to be done on the linux host 
 
 Table of contents 
-- Notes and nomenclature 
+- Notes and nomenclatures 
 - Understanding the linux host 
-- Initial host steup, libvirt setup and configuration 
+- Initial host setup, libvirt setup and configuration 
     - Installing and setting up with dependencies 
     - Bootstrap script - Environment variables at the system level 
     - Configuring libvirt and the storage pools 
@@ -14,9 +14,12 @@ Table of contents
     - Download the cloud images 
     - Tailscale setup 
 
+TODO : Every section can actually be made into a script that we run. Please however make sure that every script is indempotent 
+
 --- 
 
 ## Notes and nomenclature 
+Environment variables and storage pool setup :- 
 
 ```
 LIBVIRT_HOME
@@ -45,202 +48,22 @@ precedence order.
 
 
 ## Understanding the linux host 
-[check_host_specs](./scripts/80_check_host_specs.sh)
+[host_check_specs](./scripts/80_host_check_specs.sh)
 - TODO : Things to improve : the CPU section should explicitly show physical cores, threads/core, sockets, and cache, rather than the current grep potentially hiding those fields. That will make the output much more useful when we use it to calculate VM capacity.
 
-
-
 ## Initial host setup, libvirt setup and configuration 
-1) Install the dependencies that are required
-2) Bootstrap script (Setup first time)
-3) Configuration script (Setup before running lifecycle scripts)
-4) VM lifecycle scripts
-5) Check the environment 
+- Installing and setting up with dependencies : [81_host_setup_initial_dependencies](./scripts/81_host_setup_initial_dependencies.sh)
+- Bootstrap script - Environment variables at the system level : [82_host_setup_bootstrap_script](./scripts/82_host_setup_bootstrap_script.sh)
+- Configuring libvirt and the storage pools : [83_host_configure_libvirt_storage_pools](./scripts/83_host_configure_libvirt_storage_pools.sh)
+- Edit storage pools : 
 
-
-### Installing and setting up with dependencies 
-```
-egrep -c '(vmx|svm)' /proc/cpuinfo
-sudo apt install -y cpu-checker
-sudo kvm-ok
-
-sudo apt update && sudo apt upgrade -y
-sudo apt autoremove --purge -y
-sudo apt autoclean -y
-
-sudo apt install -y qemu-kvm 
-sudo apt install -y libvirt-daemon-system 
-sudo apt install -y libvirt-clients 
-sudo apt install -y virtinst 
-sudo apt install -y bridge-utils
-sudo apt install -y libosinfo-bin
-sudo apt install -y virt-top
-sudo apt install -y virt-manager
-sudo apt install -y genisoimage
-sudo apt install -y cloud-image-utils
-
-sudo apt install -y jq
-
-# yq -- used to read/write state.yaml. The `yq` package in apt is NOT
-# guaranteed to be mikefarah/yq (Go); install the Go binary explicitly so
-# the -i / `.key = "value"` syntax used by lib/common.sh works:
-sudo curl -fsSL -o /usr/local/bin/yq \
-    https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-sudo chmod +x /usr/local/bin/yq
-yq --version   # should print "yq (https://github.com/mikefarah/yq/) version ..."
-
-sudo usermod -aG libvirt $USER
-sudo usermod -aG kvm $USER
-
-sudo systemctl enable libvirtd
-sudo systemctl start libvirtd
-
-# Log out and back in 
-sudo systemctl status libvirtd
-
-groups
-
-sudo virsh list --all
-sudo virsh net-list --all
-sudo virsh pool-list --all
-
-```
-
-### Bootstrap script setup - Defines the various environment variables at the system level 
-Filename : `sudo nano /etc/profile.d/sandbox.sh`
-
-```
-#!/usr/bin/env bash
-
-export SANDBOX_HOME="${SANDBOX_HOME:-$HOME/projects}"
-
-if mountpoint -q /mnt/extreme_ssd; then
-    export STORAGE_POOL_HOME="/mnt/extreme_ssd/libvirt"
-else
-    unset STORAGE_POOL_HOME
-fi
-
-export LIBVIRT_HOME="${STORAGE_POOL_HOME:-$SANDBOX_HOME/libvirt}"
-
-export STORAGE_POOL_IMAGES="${LIBVIRT_HOME}/images"
-export STORAGE_POOL_ISOS="${LIBVIRT_HOME}/isos"
-export STORAGE_POOL_DISKS="${LIBVIRT_HOME}/disks"
-export STORAGE_POOL_SNAPSHOTS="${LIBVIRT_HOME}/snapshots"
-export STORAGE_POOL_CLOUD_INIT_ISOS="${LIBVIRT_HOME}/cloud-init"
-
-export DEFAULT_CLOUD_IMG="noble-server-cloudimg-amd64"
-export DEFAULT_OS_VARIANT="ubuntu24.04"
-export DEFAULT_RAM_MB="2048"
-export DEFAULT_VCPUS="2"
-export DEFAULT_DISK_GB="20"
-
-export DEFAULT_AUTOSTART="false"
-
-# Used for SSH connection hints (vmname.<tailnet>.ts.net) and the
-# ssh-keygen -R reminder printed by 04_destroy_vm.sh. Set this to your tailnet
-# name, e.g. "tailnet-name.ts.net" or leave unset if you don't use Tailscale.
-export TAILSCALE_TAILNET=""
-
-```
-
-Change the permissions : `sudo chmod 644 /etc/profile.d/sandbox.sh`
-
-### Configuring Libvirt and the storage pools 
-
-```
-grep "^user" /etc/libvirt/qemu.conf
-grep "^group" /etc/libvirt/qemu.conf
-
-mkdir -p ${STORAGE_POOL_IMAGES} ${STORAGE_POOL_ISOS} ${STORAGE_POOL_DISKS} ${STORAGE_POOL_SNAPSHOTS} ${STORAGE_POOL_CLOUD_INIT_ISOS}
-
-sudo chown -R libvirt-qemu:kvm ${LIBVIRT_HOME}
-sudo chmod -R 775 ${LIBVIRT_HOME}
-
-# setgid on all pool directories: files the lifecycle scripts create (as
-# your regular user, no sudo) inherit group `kvm`, so libvirt-qemu (a member
-# of kvm) can read/write them without needing to be chown'd afterwards.
-sudo find ${LIBVIRT_HOME} -type d -exec chmod g+s {} \;
-
-ls -la ${LIBVIRT_HOME}
-
-sudo virsh pool-list --all
-sudo virsh vol-list default
-sudo virsh list --all
-
-# Stop and remove the existing default pool definition
-sudo virsh pool-destroy default
-sudo virsh pool-undefine default
-
-# Define the new default pool on the SSD
-sudo virsh pool-define-as default dir --target ${STORAGE_POOL_IMAGES}
-sudo virsh pool-autostart default
-sudo virsh pool-start default 
-
-sudo virsh pool-define-as iso-pool dir --target ${STORAGE_POOL_ISOS}
-sudo virsh pool-autostart iso-pool
-sudo virsh pool-start iso-pool
-
-sudo virsh pool-define-as disk-pool dir --target ${STORAGE_POOL_DISKS}
-sudo virsh pool-autostart disk-pool
-sudo virsh pool-start disk-pool
-
-sudo virsh pool-define-as snapshot-pool dir --target ${STORAGE_POOL_SNAPSHOTS}
-sudo virsh pool-autostart snapshot-pool
-sudo virsh pool-start snapshot-pool
-
-sudo virsh pool-define-as cloudinit-pool dir --target ${STORAGE_POOL_CLOUD_INIT_ISOS}
-sudo virsh pool-autostart cloudinit-pool
-sudo virsh pool-start cloudinit-pool
-
-sudo virsh pool-refresh default
-sudo virsh pool-refresh iso-pool
-sudo virsh pool-refresh disk-pool
-sudo virsh pool-refresh snapshot-pool
-sudo virsh pool-refresh cloudinit-pool
-
-sudo virsh pool-list --all
-
-sudo virsh pool-info default
-sudo virsh pool-info iso-pool
-sudo virsh pool-info disk-pool
-sudo virsh pool-info snapshot-pool
-sudo virsh pool-info cloudinit-pool
-
-virsh pool-dumpxml default
-virsh pool-dumpxml iso-pool
-virsh pool-dumpxml disk-pool
-virsh pool-dumpxml snapshot-pool
-virsh pool-dumpxml cloudinit-pool
-
-```
-
-### Checking configurations
-```
-virt-install --version
-cloud-init --version
-qemu-img --version
-yq --version
-
-virsh -c qemu:///system list --all
-virsh -c qemu:///system pool-list --all
-virsh -c qemu:///system net-list --all
-
-# Confirm the lifecycle scripts can run without sudo (requires the
-# usermod -aG libvirt/kvm above and a fresh login session):
-virsh -c qemu:///system list --all
-
-```
-
-
-## Editing libvirt configuration (and migrating the the current VMs) 
 TODO : Might be needed in case you want to change the LIBVIRT_HOME on the linux host 
 - Will require us to change the environment variables 
 - Will require us to change the bootstrap scrtips 
 - Will require us to change the storage pools in the libvirt 
 - Will require us to move the VMs to the new locations
 
-## Checking libvirt configuration
-TO
+- Checking configurations : [85_host_check_libvirt_config](./scripts/85_host_check_libvirt_config.sh)
 
 
 ## Other setup 
